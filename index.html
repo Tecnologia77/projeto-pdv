@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>STOCK PDV — Sistema de Gestão</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ════════════════════════════
+     LOGIN
+════════════════════════════ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-bg">
+    <div class="lb lb1"></div><div class="lb lb2"></div>
+    <div class="login-grid-bg"></div>
+  </div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-mark">S</div>
+      <div>
+        <span class="login-brand">STOCK PDV</span>
+        <span class="login-brand-sub">Sistema de Gestão</span>
+      </div>
+    </div>
+    <h2>Bem-vindo de volta</h2>
+    <p class="login-desc">Faça login para acessar o sistema</p>
+    <div class="fg"><label>Usuário</label><input type="text" id="lu" placeholder="Digite seu usuário" autocomplete="username"/></div>
+    <div class="fg"><label>Senha</label>
+      <div class="pw-wrap">
+        <input type="password" id="lp" placeholder="Digite sua senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+        <button class="pw-eye" type="button" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+      </div>
+    </div>
+    <div class="login-err" id="loginErr">Usuário ou senha incorretos.</div>
+    <button class="btn-login" onclick="doLogin()">Entrar no sistema</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════
+     APP
+════════════════════════════ -->
+<div class="app" id="app" style="display:none">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-mark" id="sbLogoWrap">S</div>
+      <div class="sb-brand">
+        <span id="sbBrandName">STOCK PDV</span>
+        <small>Gestão Completa</small>
+      </div>
+    </div>
+    <nav class="sb-nav">
+      <span class="nav-group">Principal</span>
+      <a class="ni active" data-p="pedidos" onclick="go('pedidos')"><i>📋</i><span>Pedidos</span><b class="nb" id="nbPedidos"></b></a>
+      <a class="ni" data-p="cardapio" onclick="go('cardapio')"><i>🍽️</i><span>Cardápio</span></a>
+      <a class="ni" data-p="estoque" onclick="go('estoque')"><i>📦</i><span>Estoque</span><b class="nb warn" id="nbEstoque"></b></a>
+      <a class="ni" data-p="clientes" onclick="go('clientes')"><i>👥</i><span>Clientes / Atacado</span></a>
+      <span class="nav-group">Financeiro</span>
+      <a class="ni" data-p="financeiro" onclick="go('financeiro')"><i>💵</i><span>Financeiro</span></a>
+      <a class="ni" data-p="relatorios" onclick="go('relatorios')"><i>📊</i><span>Relatórios</span></a>
+      <span class="nav-group admin-only">Admin</span>
+      <a class="ni admin-only" data-p="usuarios" onclick="go('usuarios')"><i>🔐</i><span>Usuários</span></a>
+      <a class="ni" data-p="config" onclick="go('config')"><i>⚙️</i><span>Configurações</span></a>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-user">
+        <div class="sb-avatar" id="sbAvatar">A</div>
+        <div><span id="sbName">Admin</span><small id="sbRole">Administrador</small></div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()" title="Sair">⏻</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main" id="mainArea">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <button class="sb-toggle" id="sbToggle" onclick="toggleSB()">☰</button>
+      <div class="tb-title" id="tbTitle">Pedidos</div>
+      <div class="tb-right">
+        <div class="tb-search"><span>🔍</span><input type="text" placeholder="Pesquisar..." id="gSearch" oninput="gSearchFn()"/></div>
+        <button class="tb-notif" onclick="toggleNotif()" id="notifBtn">🔔<span class="notif-dot" id="ndot" style="display:none"></span></button>
+        <div class="notif-drop" id="notifDrop" style="display:none">
+          <div class="nd-hd">Notificações</div>
+          <div id="ndList"><div class="nd-empty">Nenhuma notificação</div></div>
+        </div>
+        <div class="tb-clock" id="tbClock"></div>
+      </div>
+    </header>
+
+    <div class="pages">
+
+      <!-- ══════════ PEDIDOS ══════════ -->
+      <div class="page active" id="page-pedidos">
+        <div class="ph">
+          <div>
+            <h1>Pedidos</h1>
+            <span class="ph-sub">Gerencie seus pedidos</span>
+          </div>
+          <div class="ph-btns">
+            <button class="btn-outline-red" onclick="toggleLoja()" id="btnLoja">⏻ FECHAR LOJA</button>
+            <button class="btn-primary" onclick="openNovoPedido()">⊕ NOVO PEDIDO</button>
+          </div>
+        </div>
+
+        <!-- Status strip -->
+        <div class="status-strip">
+          <div class="ss-card" id="ss0"><span>AGUARDANDO APROVAÇÃO</span><strong id="cnt0">0</strong><em>⏳</em></div>
+          <div class="ss-card" id="ss1"><span>ATUALIZADO</span><strong id="cnt1">0</strong><em>😐</em></div>
+          <div class="ss-card active-ss" id="ss2"><span>EM PREPARAÇÃO</span><strong id="cnt2">0</strong><em>🔄</em></div>
+          <div class="ss-card" id="ss3"><span>SAIU PARA ENTREGA</span><strong id="cnt3">0</strong><em>🚚</em></div>
+          <div class="ss-card" id="ss4"><span>PRONTO PARA RETIRADA</span><strong id="cnt4">0</strong><em>✅</em></div>
+          <div class="ss-card" id="ss5"><span>AGENDADO</span><strong id="cnt5">0</strong><em>📅</em></div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="ped-toolbar">
+          <button class="btn-dark" onclick="renderPedidos()">VER TODOS OS PEDIDOS</button>
+          <div class="tb-search"><span>🔍</span><input type="text" id="searchPed" placeholder="Pesquisar pedidos..." oninput="renderPedidos()"/></div>
+          <div style="flex:1"></div>
+        </div>
+        <div class="ped-tabs-row">
+          <div class="ped-tabs">
+            <button class="ptab active" data-tipo="todos" onclick="setTipoTab(this,'todos')">Todos os Pedidos <span id="ptTodos" class="ptab-n">0</span></button>
+            <button class="ptab" data-tipo="retirada" onclick="setTipoTab(this,'retirada')">Retirada <span id="ptRetirada" class="ptab-n">0</span></button>
+            <button class="ptab" data-tipo="entrega" onclick="setTipoTab(this,'entrega')">Entrega <span id="ptEntrega" class="ptab-n">0</span></button>
+          </div>
+        </div>
+        <div class="ocultar-row">
+          <label class="tgl-label"><input type="checkbox" id="ocultarConc" onchange="renderPedidos()"/><span class="tgl-sl"></span>Ocultar pedidos concluídos</label>
+          <div class="tipo-counts">
+            <span class="tc" id="tcRetirada">Retirada <b>0</b></span>
+            <span class="tc" id="tcEntrega">Entrega <b>0</b></span>
+          </div>
+        </div>
+
+        <!-- Pedidos layout: lista + detalhe -->
+        <div class="ped-layout">
+          <div class="ped-list" id="pedList"></div>
+          <div class="ped-detail" id="pedDetail">
+            <div class="pd-empty">
+              <span>📋</span>
+              <p>Selecione um pedido para ver os detalhes</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ CARDÁPIO ══════════ -->
+      <div class="page" id="page-cardapio">
+        <div class="ph">
+          <div><h1>Cardápio</h1><span class="ph-sub">Editor de Produtos</span></div>
+          <div class="ph-btns">
+            <button class="btn-outline" onclick="openModal('modalCategoria')">+ Nova Categoria</button>
+            <button class="btn-primary" onclick="openModal('modalProduto')">+ Novo Item</button>
+          </div>
+        </div>
+        <div class="card-toolbar">
+          <div class="tb-search"><span>🔍</span><input type="text" id="searchCard" placeholder="Pesquise pelo produto..." oninput="renderCardapio()"/></div>
+          <div style="flex:1"></div>
+          <button class="btn-sm-outline" id="btnPromocoes">🏷️ Itens em Promoção</button>
+        </div>
+        <div id="cardapioList"></div>
+      </div>
+
+      <!-- ══════════ ESTOQUE ══════════ -->
+      <div class="page" id="page-estoque">
+        <div class="ph">
+          <div><h1>Estoque</h1><span class="ph-sub">Controle de estoque e produtos</span></div>
+          <div class="ph-btns">
+            <button class="btn-outline" onclick="openModal('modalEntrada')">+ Entrada</button>
+            <button class="btn-primary" onclick="openModal('modalProduto')">+ Novo Produto</button>
+          </div>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi-box"><span class="kpi-ico">📦</span><div><strong id="kTotalItens">0</strong><small>Total de Itens</small></div></div>
+          <div class="kpi-box warn"><span class="kpi-ico">⚠️</span><div><strong id="kBaixo">0</strong><small>Estoque Baixo</small></div></div>
+          <div class="kpi-box danger"><span class="kpi-ico">🚫</span><div><strong id="kZero">0</strong><small>Sem Estoque</small></div></div>
+          <div class="kpi-box green"><span class="kpi-ico">💰</span><div><strong id="kValor">R$0</strong><small>Valor em Estoque</small></div></div>
+        </div>
+        <div class="card-toolbar">
+          <input type="text" class="input-field" id="searchEst" placeholder="Pesquisar produto..." oninput="renderEstoque()"/>
+          <select class="input-field" id="filterCatEst" onchange="renderEstoque()"><option value="">Todas as categorias</option></select>
+          <select class="input-field" id="filterStatusEst" onchange="renderEstoque()">
+            <option value="">Todos os status</option>
+            <option value="ok">Normal</option>
+            <option value="baixo">Baixo</option>
+            <option value="zero">Sem estoque</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="dtable" id="tblEst">
+            <thead><tr><th>Produto</th><th>Código</th><th>Categoria</th><th>Qtd</th><th>Mín</th><th>Preço Atacado</th><th>Custo</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="tbEst"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ CLIENTES ══════════ -->
+      <div class="page" id="page-clientes">
+        <div class="ph">
+          <div><h1>Clientes / Atacado</h1><span class="ph-sub">Cadastro de clientes e gestão de crédito</span></div>
+          <button class="btn-primary" onclick="openModal('modalCliente')">+ Novo Cliente</button>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi-box"><span class="kpi-ico">👥</span><div><strong id="kTotalCli">0</strong><small>Total</small></div></div>
+          <div class="kpi-box blue"><span class="kpi-ico">🏭</span><div><strong id="kAtacado">0</strong><small>Atacado</small></div></div>
+          <div class="kpi-box"><span class="kpi-ico">🛍️</span><div><strong id="kVarejo">0</strong><small>Varejo</small></div></div>
+          <div class="kpi-box danger"><span class="kpi-ico">💳</span><div><strong id="kDebito">R$0</strong><small>Total Débito</small></div></div>
+        </div>
+        <div class="card-toolbar">
+          <input type="text" class="input-field" id="searchCli" placeholder="Pesquisar cliente..." oninput="renderClientes()"/>
+          <select class="input-field" id="filterTipoCli" onchange="renderClientes()">
+            <option value="">Todos os tipos</option><option value="atacado">Atacado</option><option value="varejo">Varejo</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr><th>Cliente</th><th>Tipo</th><th>Telefone</th><th>Documento</th><th>Limite</th><th>Débito</th><th>Total Pedidos</th><th>Ações</th></tr></thead>
+            <tbody id="tbCli"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ FINANCEIRO ══════════ -->
+      <div class="page" id="page-financeiro">
+        <div class="ph">
+          <div><h1>Financeiro / Caixa</h1><span class="ph-sub">Controle de caixa e movimentações</span></div>
+          <button class="btn-primary" id="btnCaixa" onclick="openModal('modalAbrirCaixa')">Abrir Caixa</button>
+        </div>
+        <div class="fin-layout">
+          <div class="fin-left">
+            <div class="caixa-card">
+              <div class="cc-row"><span>Status</span><span class="badge-status" id="cxStatus">Fechado</span></div>
+              <div class="cc-row"><span>Abertura</span><span id="cxAbertura">—</span></div>
+              <div class="cc-row"><span>Saldo Inicial</span><span id="cxSaldoIni">R$ 0,00</span></div>
+              <div class="cc-row"><span>Entradas</span><span class="tgreen" id="cxEntradas">R$ 0,00</span></div>
+              <div class="cc-row"><span>Saídas</span><span class="tred" id="cxSaidas">R$ 0,00</span></div>
+              <div class="cc-row cc-total"><span>Saldo Atual</span><span class="tgreen" id="cxSaldo">R$ 0,00</span></div>
+            </div>
+            <div class="fin-actions">
+              <button class="btn-outline" onclick="openModal('modalSangria')">💸 Sangria</button>
+              <button class="btn-outline" onclick="openModal('modalSuprimento')">➕ Suprimento</button>
+              <button class="btn-danger" onclick="fecharCaixa()">🔒 Fechar Caixa</button>
+            </div>
+            <div class="fin-resumo-card">
+              <div class="frc-title">Resumo por Pagamento</div>
+              <div id="finResumo"></div>
+            </div>
+          </div>
+          <div class="fin-right">
+            <div class="section-sm">Movimentações</div>
+            <div class="table-wrap">
+              <table class="dtable">
+                <thead><tr><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr></thead>
+                <tbody id="tbMovCaixa"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ RELATÓRIOS ══════════ -->
+      <div class="page" id="page-relatorios">
+        <div class="ph"><h1>Relatórios</h1></div>
+        <div class="rel-kpis">
+          <div class="rk green"><span>TOTAL VENDIDO HOJE</span><strong id="rkHoje">R$ 0,00</strong><em>📈</em></div>
+          <div class="rk blue"><span>TOTAL VENDIDO NO MÊS</span><strong id="rkMes">R$ 0,00</strong><em>📅</em></div>
+          <div class="rk orange"><span>PRODUTO MAIS VENDIDO</span><strong id="rkProduto">—</strong><em>🏆</em></div>
+          <div class="rk purple"><span>LUCRO ESTIMADO</span><strong id="rkLucro">R$ 0,00</strong><em>💰</em></div>
+        </div>
+        <div class="rel-grid">
+          <div class="rel-card">
+            <div class="rc-hd">
+              <span>Resumo Mensal por Dia</span>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select class="input-field-sm" id="selMes" onchange="renderChart()">
+                  <option>Abril 2026</option><option>Março 2026</option><option>Fevereiro 2026</option>
+                </select>
+                <button class="btn-sm-green" onclick="imprimirRel()">🖨️ Imprimir</button>
+              </div>
+            </div>
+            <div class="chart-wrap" id="chartWrap"></div>
+            <div class="chart-legend"><span class="cl-green">● Lucro (R$)</span><span class="cl-blue">● Vendas (R$)</span></div>
+            <div class="table-wrap mt8">
+              <table class="dtable dtable-sm">
+                <thead><tr><th>Data</th><th>Vendas</th><th>Total</th><th>Desconto</th><th>Lucro</th></tr></thead>
+                <tbody id="tbRelMensal"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="rel-card">
+            <div class="rc-hd"><span>Top Produtos</span></div>
+            <div id="topProd"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ USUÁRIOS ══════════ -->
+      <div class="page" id="page-usuarios">
+        <div class="ph">
+          <div><h1>Usuários do Sistema</h1><span class="ph-sub">Gerenciamento de acessos</span></div>
+          <button class="btn-primary" onclick="openModal('modalUser')">+ Novo Usuário</button>
+        </div>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Último Acesso</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="tbUsers"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ CONFIG ══════════ -->
+      <div class="page" id="page-config">
+        <div class="ph"><h1>Configurações</h1><span class="ph-sub">Configurações da empresa e do sistema</span></div>
+        <div class="cfg-grid">
+          <div class="cfg-card">
+            <h3>Dados da Empresa</h3>
+            <div class="fg"><label>Nome da Empresa</label><input type="text" class="input-field" id="cfNome" placeholder="Nome do negócio"/></div>
+            <div class="fg"><label>CNPJ / CPF</label><input type="text" class="input-field" id="cfCnpj" placeholder="00.000.000/0000-00"/></div>
+            <div class="fg"><label>Telefone</label><input type="text" class="input-field" id="cfTel" placeholder="(11) 99999-9999"/></div>
+            <div class="fg"><label>Endereço</label><input type="text" class="input-field" id="cfEnd" placeholder="Rua, número, bairro"/></div>
+            <div class="fg"><label>Nome do Cliente no Comprovante</label><input type="text" class="input-field" id="cfClienteNome" placeholder="Ex: Adega Silva"/></div>
+            <div class="fg"><label>Logo do Cliente (URL)</label><input type="text" class="input-field" id="cfClienteLogo" placeholder="https://..."/></div>
+            <button class="btn-primary" onclick="salvarConfig()">Salvar Dados</button>
+          </div>
+          <div class="cfg-card">
+            <h3>Configurações de Venda</h3>
+            <div class="fg"><label>Desconto Máximo Atacado (%)</label><input type="number" class="input-field" id="cfDescAtacado" placeholder="Ex: 15"/></div>
+            <div class="fg"><label>Qtd Mínima para Atacado</label><input type="number" class="input-field" id="cfQtdAtacado" placeholder="Ex: 10"/></div>
+            <div class="fg"><label>Alerta Estoque Mínimo (unid.)</label><input type="number" class="input-field" id="cfEstMin" placeholder="Ex: 5"/></div>
+            <div class="fg"><label>Venda sem Estoque</label>
+              <select class="input-field" id="cfSemEst"><option value="nao">Bloquear venda</option><option value="sim">Permitir venda</option></select>
+            </div>
+            <div class="fg"><label>Nome da Impressora (QZ Tray)</label><input type="text" class="input-field" id="cfPrinterName" placeholder="Ex: EPSON TM-T20"/></div>
+            <div class="fg"><label>Impressão automática ao finalizar venda</label>
+              <select class="input-field" id="cfAutoPrint"><option value="sim">Sim</option><option value="nao">Não</option></select>
+            </div>
+            <button class="btn-primary" onclick="salvarConfig()">Salvar</button>
+          </div>
+          <div class="cfg-card">
+            <h3>Categorias de Produtos</h3>
+            <div class="cat-list" id="catList"></div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <input type="text" class="input-field" id="novaCat" placeholder="Nova categoria..."/>
+              <button class="btn-primary" onclick="addCategoria()">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /pages -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ════════════════════════════
+     MODAIS
+════════════════════════════ -->
+
+<!-- NOVO PEDIDO (tela completa como multipedidos) -->
+<div class="modal-overlay full-modal" id="modalNovoPedido" style="display:none">
+  <div class="modal-full">
+    <div class="mf-header">
+      <h2>Novo Pedido</h2>
+      <button class="modal-x" onclick="closeModal('modalNovoPedido')">✕</button>
+    </div>
+    <div class="mf-body">
+      <!-- Tipo de pedido -->
+      <div class="mf-tipos">
+        <button class="tipo-btn active" data-tipo="entrega" onclick="setTipoPedido(this)">Entrega</button>
+        <button class="tipo-btn" data-tipo="retirada" onclick="setTipoPedido(this)">Retirada</button>
+      </div>
+      <!-- Dados do cliente -->
+      <div class="mf-cliente">
+        <div class="mf-row">
+          <div class="fg"><input type="tel" class="input-field" id="npTel" placeholder="Telefone"/></div>
+          <div class="fg"><input type="text" class="input-field" id="npNome" placeholder="Nome *"/></div>
+          <div class="fg"><input type="email" class="input-field" id="npEmail" placeholder="Email (opcional)"/></div>
+        </div>
+        <div class="mf-row entrega-fields">
+          <div class="fg fg-wide"><input type="text" class="input-field" id="npRua" placeholder="Rua ou CEP"/></div>
+          <div class="fg fg-sm"><input type="text" class="input-field" id="npNum" placeholder="Nº"/></div>
+          <div class="fg"><input type="text" class="input-field" id="npComp" placeholder="Complemento"/></div>
+          <div class="fg"><input type="text" class="input-field" id="npRef" placeholder="Ponto de Referência"/></div>
+        </div>
+        <div class="mf-row entrega-fields">
+          <div class="fg"><input type="text" class="input-field" id="npBairro" placeholder="Bairro (Opcional)"/></div>
+        </div>
+      </div>
+      <!-- Produtos + Detalhe -->
+      <div class="mf-content">
+        <div class="mf-produtos">
+          <div class="mp-toolbar">
+            <select class="input-field-sm" id="npFiltro"><option>Nome</option><option>Código</option></select>
+            <input type="text" class="input-field" id="npSearch" placeholder="Pesquisar..." oninput="renderNpProd()"/>
+            <input type="text" class="input-field np-scan-input" id="npScanCode" placeholder="Bipar código de barras (Enter)" onkeydown="if(event.key==='Enter')scanCodigoManual()"/>
+            <input type="number" class="input-field-sm np-scan-qty" id="npScanQty" min="1" value="1" title="Quantidade por bipagem"/>
+            <button class="btn-sm-green" type="button" onclick="scanCodigoManual()">Bipar</button>
+            <label class="tgl-label"><input type="checkbox" id="npOcultar"/><span class="tgl-sl"></span>Ocultar indisponíveis</label>
+          </div>
+          <div class="mp-cats" id="npCats"></div>
+          <div class="mp-grid" id="npGrid"></div>
+        </div>
+        <div class="mf-detalhe">
+          <div class="md-title">Detalhes do Pedido</div>
+          <div class="md-itens" id="npItens"><div class="md-empty">Nenhum item selecionado</div></div>
+          <div class="md-desconto">
+            <div class="md-desc-row">
+              <button class="desc-tab active" data-t="acrescimo" onclick="setDescTab(this)">Acrescimo</button>
+              <button class="desc-tab" data-t="desconto" onclick="setDescTab(this)">Desconto</button>
+              <button class="desc-unit active" data-u="pct" onclick="setDescUnit(this)">%</button>
+              <button class="desc-unit" data-u="rs" onclick="setDescUnit(this)">R$</button>
+              <input type="number" class="input-field-sm" id="npDescVal" min="0" value="0" oninput="calcTotal()"/>
+            </div>
+          </div>
+          <div class="md-total">
+            <span>Total</span><strong id="npTotal">R$0,00</strong>
+          </div>
+          <div class="md-pgto">
+            <div class="md-pgto-title">Forma de Pagamento</div>
+            <div class="pgto-row">
+              <span>Pagador 1</span>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                <button class="pgto-btn active" data-p="dinheiro" onclick="setPgto(this)">💵 Dinheiro</button>
+                <button class="pgto-btn" data-p="pix" onclick="setPgto(this)">⚡ PIX</button>
+                <button class="pgto-btn" data-p="credito" onclick="setPgto(this)">💳 Crédito</button>
+                <button class="pgto-btn" data-p="debito" onclick="setPgto(this)">💳 Débito</button>
+                <button class="pgto-btn" data-p="fiado" onclick="setPgto(this)">📝 Fiado</button>
+              </div>
+            </div>
+          </div>
+          <div class="md-obs">
+            <input type="text" class="input-field" id="npObs" placeholder="Observações do pedido..."/>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mf-footer">
+      <button class="btn-danger" onclick="closeModal('modalNovoPedido')">Cancelar</button>
+      <button class="btn-primary btn-lg" onclick="salvarPedido()">✓ Finalizar Pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- VER PEDIDO -->
+<div class="modal-overlay" id="modalVerPedido" style="display:none">
+  <div class="modal modal-lg">
+    <div class="modal-hd"><h3 id="vpTitulo">Pedido #0</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn-sm-outline" onclick="imprimirPedido()">🖨️ Imprimir</button>
+        <button class="modal-x" onclick="closeModal('modalVerPedido')">✕</button>
+      </div>
+    </div>
+    <div class="modal-bd" id="vpBody"></div>
+    <div class="modal-ft" id="vpFooter"></div>
+  </div>
+</div>
+
+<!-- PRODUTO / ITEM CARDÁPIO -->
+<div class="modal-overlay" id="modalProduto" style="display:none">
+  <div class="modal">
+    <div class="modal-hd"><h3 id="mpTitulo">Novo Produto</h3><button class="modal-x" onclick="closeModal('modalProduto')">✕</button></div>
+    <div class="modal-bd">
+      <div class="form-row">
+        <div class="fg"><label>Nome *</label><input type="text" class="input-field" id="mpNome" placeholder="Ex: Coca-Cola 2L"/></div>
+        <div class="fg"><label>Código de Barras</label><input type="text" class="input-field" id="mpCodigo" placeholder="EAN / interno"/></div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Categoria</label><select class="input-field" id="mpCat"></select></div>
+        <div class="fg"><label>Unidade</label>
+          <select class="input-field" id="mpUnidade"><option>UN</option><option>KG</option><option>LT</option><option>CX</option><option>PC</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Preço Atacado (R$) *</label><input type="number" class="input-field" id="mpAtacado" min="0" step="0.01" placeholder="0,00"/></div>
+        <div class="fg"><label>Custo (R$)</label><input type="number" class="input-field" id="mpCusto" min="0" step="0.01" placeholder="0,00"/></div>
+      </div>
+      <div class="fg">
+        <label>Lotes por Quantidade de Caixas</label>
+        <div class="lotes-wrap">
+          <div id="mpLotesList"></div>
+          <button class="btn-sm-green" type="button" onclick="addLoteRow()">+ Adicionar Lote</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Estoque Inicial</label><input type="number" class="input-field" id="mpEstInicial" min="0" placeholder="0"/></div>
+        <div class="fg"><label>Estoque Mínimo</label><input type="number" class="input-field" id="mpEstMin" min="0" placeholder="5"/></div>
+      </div>
+      <div class="fg"><label>Foto (URL)</label><input type="text" class="input-field" id="mpFoto" placeholder="https://..."/></div>
+      <div class="fg"><label>Disponível</label>
+        <select class="input-field" id="mpDisp"><option value="1">Sim</option><option value="0">Não</option></select>
+      </div>
+      <input type="hidden" id="mpId"/>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalProduto')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarProduto()">Salvar Produto</button>
+    </div>
+  </div>
+</div>
+
+<!-- CATEGORIA -->
+<div class="modal-overlay" id="modalCategoria" style="display:none">
+  <div class="modal modal-sm">
+    <div class="modal-hd"><h3 id="mcTitulo">Nova Categoria</h3><button class="modal-x" onclick="closeModal('modalCategoria')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>Nome da Categoria *</label><input type="text" class="input-field" id="mcNome" placeholder="Ex: Cerveja"/></div>
+      <input type="hidden" id="mcId"/>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalCategoria')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarCategoria()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ENTRADA ESTOQUE -->
+<div class="modal-overlay" id="modalEntrada" style="display:none">
+  <div class="modal">
+    <div class="modal-hd"><h3>Entrada de Estoque</h3><button class="modal-x" onclick="closeModal('modalEntrada')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>Produto</label><select class="input-field" id="entProd"></select></div>
+      <div class="form-row">
+        <div class="fg"><label>Quantidade</label><input type="number" class="input-field" id="entQtd" min="1" placeholder="0"/></div>
+        <div class="fg"><label>Custo Unitário (R$)</label><input type="number" class="input-field" id="entCusto" min="0" step="0.01" placeholder="0,00"/></div>
+      </div>
+      <div class="fg"><label>Fornecedor</label><input type="text" class="input-field" id="entForn" placeholder="Nome do fornecedor"/></div>
+      <div class="fg"><label>Observação</label><input type="text" class="input-field" id="entObs" placeholder="NF, lote, etc."/></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalEntrada')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarEntrada()">Confirmar Entrada</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLIENTE -->
+<div class="modal-overlay" id="modalCliente" style="display:none">
+  <div class="modal">
+    <div class="modal-hd"><h3 id="mclTitulo">Novo Cliente</h3><button class="modal-x" onclick="closeModal('modalCliente')">✕</button></div>
+    <div class="modal-bd">
+      <div class="form-row">
+        <div class="fg"><label>Nome *</label><input type="text" class="input-field" id="clNome" placeholder="Nome / Razão Social"/></div>
+        <div class="fg"><label>Tipo</label>
+          <select class="input-field" id="clTipo"><option value="varejo">Varejo</option><option value="atacado">Atacado</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Telefone / WhatsApp</label><input type="tel" class="input-field" id="clTel" placeholder="(11) 99999-9999"/></div>
+        <div class="fg"><label>CNPJ / CPF</label><input type="text" class="input-field" id="clDoc" placeholder="00.000.000/0000-00"/></div>
+      </div>
+      <div class="fg"><label>Endereço</label><input type="text" class="input-field" id="clEnd" placeholder="Rua, número, bairro"/></div>
+      <div class="form-row">
+        <div class="fg"><label>Limite de Crédito (R$)</label><input type="number" class="input-field" id="clLimite" min="0" step="0.01" placeholder="0,00"/></div>
+        <div class="fg"><label>Desconto Fixo (%)</label><input type="number" class="input-field" id="clDesc" min="0" max="100" placeholder="0"/></div>
+      </div>
+      <input type="hidden" id="clId"/>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarCliente()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ABRIR CAIXA -->
+<div class="modal-overlay" id="modalAbrirCaixa" style="display:none">
+  <div class="modal modal-sm">
+    <div class="modal-hd"><h3>Abrir Caixa</h3><button class="modal-x" onclick="closeModal('modalAbrirCaixa')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>Saldo Inicial (R$)</label><input type="number" class="input-field" id="cxIni" min="0" step="0.01" placeholder="0,00"/></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalAbrirCaixa')">Cancelar</button>
+      <button class="btn-primary" onclick="abrirCaixa()">Abrir</button>
+    </div>
+  </div>
+</div>
+
+<!-- SANGRIA -->
+<div class="modal-overlay" id="modalSangria" style="display:none">
+  <div class="modal modal-sm">
+    <div class="modal-hd"><h3>Sangria de Caixa</h3><button class="modal-x" onclick="closeModal('modalSangria')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>Valor (R$)</label><input type="number" class="input-field" id="sgVal" min="0" step="0.01" placeholder="0,00"/></div>
+      <div class="fg"><label>Motivo</label><input type="text" class="input-field" id="sgMot" placeholder="Ex: Pagamento fornecedor"/></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalSangria')">Cancelar</button>
+      <button class="btn-danger" onclick="registrarSangria()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUPRIMENTO -->
+<div class="modal-overlay" id="modalSuprimento" style="display:none">
+  <div class="modal modal-sm">
+    <div class="modal-hd"><h3>Suprimento de Caixa</h3><button class="modal-x" onclick="closeModal('modalSuprimento')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>Valor (R$)</label><input type="number" class="input-field" id="spVal" min="0" step="0.01" placeholder="0,00"/></div>
+      <div class="fg"><label>Motivo</label><input type="text" class="input-field" id="spMot" placeholder="Ex: Troco inicial"/></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalSuprimento')">Cancelar</button>
+      <button class="btn-primary" onclick="registrarSuprimento()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- USUÁRIO -->
+<div class="modal-overlay" id="modalUser" style="display:none">
+  <div class="modal modal-sm">
+    <div class="modal-hd"><h3 id="muTitulo">Novo Usuário</h3><button class="modal-x" onclick="closeModal('modalUser')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>Nome Completo *</label><input type="text" class="input-field" id="uNome" placeholder="Nome do operador"/></div>
+      <div class="fg"><label>Login *</label><input type="text" class="input-field" id="uLogin" placeholder="login único"/></div>
+      <div class="fg"><label>Senha *</label><input type="password" class="input-field" id="uSenha" placeholder="Mínimo 4 caracteres"/></div>
+      <div class="fg"><label>Perfil</label>
+        <select class="input-field" id="uPerfil"><option value="operador">Operador</option><option value="admin">Administrador</option></select>
+      </div>
+      <input type="hidden" id="uId"/>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-outline" onclick="closeModal('modalUser')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarUser()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="firebase-config.js?v=20260423"></script>
+<script src="app.js?v=20260423"></script>
+</body>
+</html>
