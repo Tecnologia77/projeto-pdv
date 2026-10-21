@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202610211300" />
+    <link rel="stylesheet" href="styles.css?v=202610211630" />
     <style>
       #bootScreen {
         position: fixed; inset: 0; z-index: 10000;
@@ -493,16 +493,10 @@
                   </div>
                 </div>
                 <div id="productDoseFields" class="hidden full">
-                  <label>Itens fixos da dose / combo</label>
-                  <small style="color:var(--muted);display:block;margin:4px 0 10px;">O que sempre sai no pedido. Ex.: gelo 1 un. Garrafa aberta = ml; lata, gelo, etc. = unidade. Pode ficar vazio se o cliente for escolher os produtos abaixo.</small>
+                  <label>Insumos do combo</label>
+                  <small style="color:var(--muted);display:block;margin:4px 0 10px;">Cadastre cada produto do combo e a quantidade fixa. Dentro do insumo, adicione as opções que o cliente pode escolher, como sabor. A quantidade não muda: sai sempre a que você cadastrou.</small>
                   <div id="doseRecipeList"></div>
                   <button type="button" id="btnAddDoseRecipeRow" class="btn btn-cash-sm" style="margin-top:8px;">+ Adicionar insumo</button>
-                  <div class="combo-groups-block">
-                    <label>Escolhas do cliente no cardápio</label>
-                    <small style="color:var(--muted);display:block;margin:4px 0 10px;">Crie um grupo para cada pergunta (marca, sabor, energético) e coloque os produtos que o cliente pode escolher. No pedido online ele marca um produto de cada grupo.</small>
-                    <div id="comboGroupList"></div>
-                    <button type="button" id="btnAddComboGroup" class="btn btn-cash-sm" style="margin-top:8px;">+ Adicionar grupo (marca, sabor...)</button>
-                  </div>
                 </div>
                 <div class="field-group" id="productMinStockWrap">
                   <label id="productMinStockLabel">Estoque mínimo</label>
@@ -1624,7 +1618,7 @@
     <script src="qz-security.js?v=202606206"></script>
     <script src="firebase-config.js?v=202606155"></script>
     <script src="ai.js?v=202606164"></script>
-    <script src="delivery-logic.js?v=202610211300"></script>
-    <script src="app.js?v=202610211300"></script>
+    <script src="delivery-logic.js?v=202610211630"></script>
+    <script src="app.js?v=202610211630"></script>
   </body>
 </html>

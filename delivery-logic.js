@@ -65,18 +65,49 @@
       let id = String(group?.id || "").trim() || `grp_${index + 1}`;
       if (used.has(id)) id = `${id}_${index + 1}`;
       used.add(id);
+      const fixedQty = Math.max(0, Number(group?.fixedQty || 0));
       const options = (Array.isArray(group?.options) ? group.options : []).map((opt) => {
         const productId = String(opt?.productId || "").trim();
         if (!productId) return null;
         return {
           productId,
           extraPrice: roundMoney(Math.max(0, Number(opt?.extraPrice || 0))),
-          qty: Math.max(0, Number(opt?.qty || 0))
+          qty: fixedQty > 0 ? fixedQty : Math.max(0, Number(opt?.qty || 0))
         };
       }).filter(Boolean);
       if (!options.length) return null;
-      return { id, name, options };
+      return {
+        id,
+        name,
+        replacesProductId: String(group?.replacesProductId || "").trim(),
+        options
+      };
     }).filter(Boolean);
+  }
+
+  function comboChoicesFromProduct(product) {
+    const recipe = Array.isArray(product?.doseRecipe) ? product.doseRecipe : [];
+    const fromRecipe = [];
+    recipe.forEach((row, index) => {
+      const rawOptions = (Array.isArray(row?.options) ? row.options : []).filter((opt) => String(opt?.productId || "").trim());
+      if (!rawOptions.length) return;
+      const ml = Math.max(0, Number(row?.ml || 0));
+      const units = Math.max(0, Number(row?.qty || 0));
+      const fixedQty = ml > 0 ? ml : (units > 0 ? units : 1);
+      fromRecipe.push({
+        id: String(row?.choiceId || "").trim() || `insumo_${index + 1}`,
+        name: String(row?.choiceName || "").trim() || "Sabor",
+        replacesProductId: String(row?.productId || "").trim(),
+        fixedQty,
+        options: rawOptions.map((opt) => ({
+          productId: String(opt.productId).trim(),
+          extraPrice: opt.extraPrice || 0,
+          qty: fixedQty
+        }))
+      });
+    });
+    if (fromRecipe.length) return normalizeComboGroups(fromRecipe);
+    return normalizeComboGroups(product?.comboGroups);
   }
 
   function comboUnitPrice(basePrice, selections) {
@@ -100,6 +131,7 @@
     getDeliveryFeeMode,
     calculateDeliveryFee,
     normalizeComboGroups,
+    comboChoicesFromProduct,
     comboUnitPrice,
     comboSelectionKey
   };

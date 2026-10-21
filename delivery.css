@@ -476,6 +476,12 @@ body {
   font-size: 0.95rem;
 }
 
+.combo-fixed-line {
+  margin: 0 0 8px;
+  color: var(--muted, #64748b);
+  font-size: 13px;
+}
+
 .combo-option {
   display: flex;
   align-items: center;

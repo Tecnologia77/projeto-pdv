@@ -51,4 +51,33 @@ assert.strictEqual(
   "combo1::g1:a|g2:c"
 );
 
+const fromInsumo = logic.comboChoicesFromProduct({
+  doseRecipe: [
+    { productId: "gelo", ml: 0, qty: 1 },
+    {
+      productId: "energetico",
+      ml: 0,
+      qty: 1,
+      choiceName: "Sabor",
+      options: [
+        { productId: "redbull", extraPrice: 0, qty: 9 },
+        { productId: "monster", extraPrice: 2 }
+      ]
+    }
+  ]
+});
+assert.strictEqual(fromInsumo.length, 1);
+assert.strictEqual(fromInsumo[0].name, "Sabor");
+assert.strictEqual(fromInsumo[0].replacesProductId, "energetico");
+assert.strictEqual(fromInsumo[0].options[0].qty, 1);
+assert.strictEqual(fromInsumo[0].options[1].qty, 1);
+assert.strictEqual(fromInsumo[0].options[1].extraPrice, 2);
+
+const legacy = logic.comboChoicesFromProduct({
+  doseRecipe: [{ productId: "gelo", qty: 1 }],
+  comboGroups: [{ name: "Marca", options: [{ productId: "jack", qty: 50 }] }]
+});
+assert.strictEqual(legacy.length, 1);
+assert.strictEqual(legacy[0].options[0].qty, 50);
+
 console.log("delivery-logic tests ok");
