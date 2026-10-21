@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Pedido online</title>
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Pedido" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest-delivery.webmanifest" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" href="/icons/app-icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/icons/app-icon-512.png" />
+    <script>document.documentElement.dataset.pwaManifest = "/manifest-delivery.webmanifest";</script>
+    <script src="pwa.js?v=202606035"></script>
+    <style>
+      .hidden { display: none !important; }
+      body { margin: 0; font-family: system-ui, sans-serif; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/delivery.css?v=202610211300" />
+  </head>
+  <body>
+    <div id="deliveryApp" class="delivery-app hidden">
+      <div class="delivery-header-wrap">
+      <header class="delivery-header">
+        <div class="delivery-brand">
+          <img id="storeLogo" src="" alt="" class="delivery-logo hidden" />
+          <div>
+            <h1 id="storeName">Carregando...</h1>
+            <p id="storeMeta" class="delivery-meta"></p>
+          </div>
+        </div>
+      </header>
+
+      <div class="menu-toolbar" id="menuToolbar">
+        <label class="menu-search" for="menuSearch">
+          <span class="menu-search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="menuSearch" placeholder="Buscar produto..." autocomplete="off" enterkeyhint="search" />
+          <button type="button" id="btnClearSearch" class="menu-search-clear hidden" aria-label="Limpar busca">×</button>
+        </label>
+      </div>
+      <div class="menu-category-tabs-wrap">
+        <div
+          id="menuCategoryTabs"
+          class="menu-category-tabs"
+          aria-label="Filtrar produtos por categoria"
+        ></div>
+      </div>
+      </div>
+      
+      <main class="delivery-main">
+        <div id="productsGrid" class="products-grid"></div>
+        <p id="emptyProducts" class="delivery-empty hidden">Nenhum produto disponível no momento.</p>
+        <p id="emptySearch" class="delivery-empty hidden">Nenhum produto encontrado para sua busca.</p>
+      </main>
+
+      <aside id="cartPanel" class="cart-panel hidden">
+        <div class="cart-panel-head">
+          <strong>Seu pedido</strong>
+          <button type="button" id="btnCloseCart" class="btn-icon" aria-label="Fechar">×</button>
+        </div>
+        <ul id="cartItems" class="cart-items"></ul>
+        <div id="deliveryZoneBox" class="delivery-zone-box hidden">
+          <label for="cartDeliveryZone">Bairro da entrega</label>
+          <select id="cartDeliveryZone">
+            <option value="">Selecione o bairro</option>
+          </select>
+        </div>
+        <div class="cart-panel-totals">
+          <div><span>Subtotal</span><span id="cartSubtotal">R$ 0,00</span></div>
+          <div id="deliveryFeeLine" class="hidden"><span id="cartDeliveryFeeLabel">Taxa entrega</span><span id="cartDeliveryFee">R$ 0,00</span></div>
+          <div class="cart-total"><span>Total</span><strong id="cartTotal">R$ 0,00</strong></div>
+        </div>
+        <button type="button" id="btnOpenCheckout" class="btn-primary" disabled>Finalizar pedido</button>
+      </aside>
+
+      <button type="button" id="btnOpenCart" class="cart-fab hidden">
+        <span id="cartFabCount">0</span> · Ver carrinho · <span id="cartFabTotal">R$ 0,00</span>
+      </button>
+
+      <div id="orderTrackBar" class="order-track-bar hidden" role="status">
+        <div class="order-track-bar-head">
+          <strong id="orderTrackBarTitle">Acompanhar pedido</strong>
+          <button type="button" id="btnOpenOrderTrack" class="btn-track-link">Ver etapas</button>
+        </div>
+        <p id="orderTrackBarStatus" class="order-track-bar-status"></p>
+      </div>
+    </div>
+
+    <div id="deliveryError" class="delivery-error hidden">
+      <h2>Loja não encontrada</h2>
+      <p id="deliveryErrorText">Verifique o link enviado pela adega.</p>
+    </div>
+
+    <div id="comboModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="comboModalTitle">
+      <div class="modal-card">
+        <h2 id="comboModalTitle">Monte o combo</h2>
+        <p id="comboModalHint" class="combo-modal-hint"></p>
+        <div id="comboModalGroups"></div>
+        <p id="comboModalPrice" class="combo-modal-price"></p>
+        <div class="modal-actions">
+          <button type="button" id="btnCancelCombo" class="btn-secondary">Voltar</button>
+          <button type="button" id="btnConfirmCombo" class="btn-primary">Adicionar ao pedido</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="checkoutModal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h2>Finalizar pedido</h2>
+        <form id="checkoutForm">
+          <label>Nome *<input type="text" id="customerName" required autocomplete="name" /></label>
+          <label>Telefone / WhatsApp *<input type="tel" id="customerPhone" required autocomplete="tel" /></label>
+          <label id="checkoutZoneLabel" class="hidden">Bairro da entrega *
+            <select id="checkoutDeliveryZone">
+              <option value="">Selecione o bairro</option>
+            </select>
+          </label>
+          <label>Endereço de entrega *<textarea id="customerAddress" rows="2" required placeholder="Rua, número e complemento"></textarea></label>
+          <label>Observações<textarea id="customerNotes" rows="2" placeholder="Ex: troco, portão, referência"></textarea></label>
+          <label>Forma de pagamento
+            <select id="customerPayment">
+              <option value="Dinheiro na entrega">Dinheiro na entrega</option>
+              <option value="Pix na entrega">Pix na entrega</option>
+              <option value="Cartão na entrega">Cartão na entrega</option>
+            </select>
+          </label>
+          <p id="checkoutMinWarning" class="checkout-warning hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="btnCancelCheckout" class="btn-secondary">Voltar</button>
+            <button type="submit" id="btnSubmitOrder" class="btn-primary">Enviar pedido</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="successModal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card modal-card--success">
+        <h2>Pedido enviado!</h2>
+        <p>O pedido foi registrado no sistema da loja.</p>
+        <p id="successOrderStatusLabel" class="order-status-label">Aguardando aprovação da loja</p>
+        <div id="successOrderSteps"></div>
+        <p id="successOrderId" class="order-id"></p>
+        <p class="order-track-hint">As etapas atualizam automaticamente quando a loja avançar o pedido.</p>
+        <p id="successWhatsAppHint" class="success-whatsapp-hint hidden"></p>
+        <a id="btnWhatsAppSend" class="btn-whatsapp hidden" href="#" target="_blank" rel="noopener noreferrer">📱 Enviar pedido no WhatsApp da loja</a>
+        <button type="button" id="btnSuccessClose" class="btn-primary">Ok</button>
+      </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="/firebase-config.js?v=202605304"></script>
+    <script src="/delivery-logic.js?v=202610211300"></script>
+    <script src="/delivery.js?v=202610211300"></script>
+  </body>
+</html>

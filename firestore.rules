@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Emails com acesso Admin (mesmos de firebase-config.js → ADMIN_EMAILS / OWNER_ADMIN_EMAIL)
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && (
+          request.auth.token.email == 'piresgustavo03@gmail.com'
+        );
+    }
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validDeliveryOrderCreate() {
+      return (request.resource.data.status == 'new'
+          || request.resource.data.status == 'awaiting_approval')
+        && request.resource.data.customer is map
+        && request.resource.data.customer.name is string
+        && request.resource.data.customer.name.size() > 0
+        && request.resource.data.customer.phone is string
+        && request.resource.data.customer.phone.size() > 0
+        && request.resource.data.customer.address is string
+        && request.resource.data.customer.address.size() > 0
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.total is number
+        && request.resource.data.total >= 0;
+    }
+
+    // Status público do pedido (cliente acompanha etapas no cardápio)
+    function validDeliveryOrderStatusCreate() {
+      return (request.resource.data.status == 'new'
+          || request.resource.data.status == 'awaiting_approval')
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt is string;
+    }
+
+    match /storePublic/{slug} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+      allow write: if isAdmin();
+    }
+
+    match /stores/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+
+      match /products/{productId} {
+        allow read: if true;
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      match /deliveryOrders/{orderId} {
+        allow create: if validDeliveryOrderCreate();
+        allow read, update, delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /deliveryOrderStatus/{orderId} {
+        allow read: if true;
+        allow create: if validDeliveryOrderStatusCreate();
+        allow update, delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /{document=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Licença: cliente lê a própria; Admin lê todas e pode renovar/atualizar
+    match /licenses/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Cadastro de clientes — Admin lista todos no painel
+    match /customers/{customerId} {
+      allow read: if isAdmin();
+      allow create: if request.auth != null
+        && (isAdmin() || request.auth.uid == customerId);
+      allow update, delete: if isAdmin()
+        || (request.auth != null && request.auth.uid == customerId);
+    }
+  }
+}
