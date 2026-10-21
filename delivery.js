@@ -30,7 +30,7 @@ function getStoreWhatsAppNumber(store) {
   return normalizeWhatsAppNumber(store?.whatsapp || store?.phone || "");
 }
 
-function buildDeliveryOrderWhatsAppMessage({ storeName, orderId, customer, items, subtotal, deliveryFee, total, paymentMethod }) {
+function buildDeliveryOrderWhatsAppMessage({ storeName, orderId, customer, items, subtotal, deliveryFee, deliveryZoneName, total, paymentMethod }) {
   const lines = [
     `🛒 *NOVO PEDIDO — ${storeName || "Loja"}*`,
     "",
@@ -47,10 +47,14 @@ function buildDeliveryOrderWhatsAppMessage({ storeName, orderId, customer, items
   lines.push("*Itens:*");
   items.forEach((item) => {
     lines.push(`• ${item.name} x${item.qty} — ${money(item.subtotal || item.price * item.qty)}`);
+    (item.selections || []).forEach((sel) => {
+      lines.push(`   ${sel.groupName}: ${sel.name}`);
+    });
   });
   lines.push("");
   lines.push(`Subtotal: ${money(subtotal)}`);
-  if (Number(deliveryFee) > 0) lines.push(`Taxa entrega: ${money(deliveryFee)}`);
+  if (deliveryZoneName) lines.push(`Bairro: ${deliveryZoneName}`);
+  if (Number(deliveryFee) > 0 || deliveryZoneName) lines.push(`Taxa entrega: ${money(deliveryFee)}`);
   lines.push(`*TOTAL: ${money(total)}*`);
   lines.push("", "_Enviado pelo cardápio online_");
   return lines.join("\n");
@@ -267,9 +271,61 @@ function getCartQty(productId) {
 
 function getCartTotals() {
   const subtotal = deliveryState.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const fee = deliveryState.store?.deliveryEnabled ? Number(deliveryState.store.deliveryFee || 0) : 0;
+  const pricing = typeof DeliveryLogic !== "undefined"
+    ? DeliveryLogic.calculateDeliveryFee(deliveryState.store || {}, deliveryState.selectedZoneId)
+    : { fee: Number(deliveryState.store?.deliveryFee || 0), needsZone: false, zone: null, mode: "flat", zones: [] };
+  const fee = pricing.needsZone ? 0 : Number(pricing.fee || 0);
   const minOrder = Number(deliveryState.store?.deliveryMinOrder || 0);
-  return { subtotal, fee, total: subtotal + fee, minOrder };
+  return { subtotal, fee, total: subtotal + fee, minOrder, pricing };
+}
+
+function getComboGroups(product) {
+  if (typeof DeliveryLogic === "undefined") return [];
+  return DeliveryLogic.normalizeComboGroups(product?.comboGroups);
+}
+
+function productHasComboChoices(product) {
+  return getComboGroups(product).length > 0;
+}
+
+function optionDeductQty(option, product) {
+  const configured = Math.max(0, Number(option?.qty || 0));
+  if (configured > 0) return configured;
+  return product?.stockMode === "ml" ? 50 : 1;
+}
+
+function getStockReserved(productId, cart = deliveryState.cart, ignoreLineId = "") {
+  let reserved = 0;
+  cart.forEach((item) => {
+    if (ignoreLineId && item.lineId === ignoreLineId) return;
+    const parent = deliveryState.products.find((p) => p.id === item.productId);
+    const chosenHere = (item.selections || []).some((sel) => sel.productId === productId);
+    if (item.productId === productId && !chosenHere && parent?.stockMode !== "ml") {
+      reserved += Number(item.qty || 0);
+    }
+    (item.selections || []).forEach((sel) => {
+      if (sel.productId === productId) {
+        reserved += Number(sel.deductQty || 1) * Number(item.qty || 0);
+      }
+    });
+    if (parent?.stockMode === "dose") {
+      getNormalizedDoseRecipe(parent, deliveryState.products).forEach((comp) => {
+        if (comp.productId !== productId) return;
+        const ingredient = deliveryState.products.find((p) => p.id === productId);
+        reserved += getDoseRecipeComponentPerDose(comp, ingredient) * Number(item.qty || 0);
+      });
+    }
+  });
+  return reserved;
+}
+
+function getOptionRemaining(option, ignoreLineId = "") {
+  const product = deliveryState.products.find((p) => p.id === option.productId);
+  if (!product) return 0;
+  const need = optionDeductQty(option, product);
+  if (need <= 0) return 0;
+  const left = Number(product.qty || 0) - getStockReserved(product.id, deliveryState.cart, ignoreLineId);
+  return Math.floor(left / need);
 }
 
 function escapeHtml(str) {
@@ -318,32 +374,44 @@ function getNormalizedDoseRecipe(product, products) {
 
 function getDeliveryProductAvailability(product, products = deliveryState.products, cart = deliveryState.cart) {
   if (!product || product.stockMode === "ml") return 0;
+  const groups = getComboGroups(product);
   if (product.stockMode === "dose") {
     const recipe = getNormalizedDoseRecipe(product, products);
-    if (!recipe.length) return 0;
-    const usage = new Map();
-    cart.filter((item) => item.productId !== product.id).forEach((item) => {
-      const p = products.find((x) => x.id === item.productId);
-      if (!p || p.stockMode !== "dose") return;
-      getNormalizedDoseRecipe(p, products).forEach((comp) => {
-        const ing = products.find((x) => x.id === comp.productId);
-        const perDose = getDoseRecipeComponentPerDose(comp, ing);
-        if (perDose > 0) {
-          usage.set(comp.productId, (usage.get(comp.productId) || 0) + perDose * item.qty);
-        }
-      });
-    });
+    if (!recipe.length && !groups.length) return 0;
     let maxDoses = Infinity;
-    recipe.forEach((comp) => {
-      const ing = products.find((p) => p.id === comp.productId);
-      const perDose = getDoseRecipeComponentPerDose(comp, ing);
-      if (!ing || perDose <= 0) return (maxDoses = 0);
-      const available = Number(ing.qty || 0) - (usage.get(comp.productId) || 0);
-      maxDoses = Math.min(maxDoses, Math.floor(available / perDose));
-    });
+    if (recipe.length) {
+      const usage = new Map();
+      cart.forEach((item) => {
+        const p = products.find((x) => x.id === item.productId);
+        if (!p || p.stockMode !== "dose") return;
+        getNormalizedDoseRecipe(p, products).forEach((comp) => {
+          const ing = products.find((x) => x.id === comp.productId);
+          const perDose = getDoseRecipeComponentPerDose(comp, ing);
+          if (perDose > 0) {
+            usage.set(comp.productId, (usage.get(comp.productId) || 0) + perDose * item.qty);
+          }
+        });
+      });
+      recipe.forEach((comp) => {
+        const ing = products.find((p) => p.id === comp.productId);
+        const perDose = getDoseRecipeComponentPerDose(comp, ing);
+        if (!ing || perDose <= 0) return (maxDoses = 0);
+        const reservedChoices = cart.reduce((sum, item) => sum + (item.selections || [])
+          .filter((sel) => sel.productId === comp.productId)
+          .reduce((inner, sel) => inner + Number(sel.deductQty || 0) * Number(item.qty || 0), 0), 0);
+        const available = Number(ing.qty || 0) - (usage.get(comp.productId) || 0) - reservedChoices;
+        maxDoses = Math.min(maxDoses, Math.floor(available / perDose));
+      });
+    }
+    if (groups.length) {
+      const selectable = groups.every((group) => group.options.some((opt) => getOptionRemaining(opt) > 0));
+      if (!selectable) return 0;
+      if (!recipe.length) return 99;
+    }
     return Math.max(0, maxDoses === Infinity ? 0 : maxDoses);
   }
-  return Math.max(0, Number(product.qty || 0));
+  const reserved = getStockReserved(product.id, cart, product.id);
+  return Math.max(0, Number(product.qty || 0) - reserved);
 }
 
 function isProductDeliveryVisible(product) {
@@ -542,16 +610,23 @@ function setOrderTrackLayout(active) {
 
 function renderProductCard(p) {
   const qty = getCartQty(p.id);
+  const hasChoices = productHasComboChoices(p);
   const photo = p.photo
     ? `<img src="${escapeHtml(p.photo)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.closest('.product-card-media')?.classList.add('product-card-media--empty')" />`
     : `<div class="product-photo-placeholder" aria-hidden="true">📦</div>`;
+  const choiceBadge = hasChoices
+    ? `<div class="combo-badge">${qty > 0 ? `${qty} no pedido · ` : ""}Escolher opções</div>`
+    : "";
   return `
     <article class="product-card" data-id="${escapeHtml(p.id)}">
       <div class="product-card-media${p.photo ? "" : " product-card-media--empty"}">${photo}</div>
       <div class="name">${escapeHtml(p.name)}</div>
+      ${choiceBadge}
       <div class="price">${money(p.price)}</div>
       <div class="add-row">
-        ${qty > 0 ? `
+        ${hasChoices
+          ? `<button type="button" class="btn-add" data-action="choose" data-id="${escapeHtml(p.id)}">${qty > 0 ? "Adicionar outro" : "Montar combo"}</button>`
+          : qty > 0 ? `
           <div class="qty-mini">
             <button type="button" data-action="minus" data-id="${escapeHtml(p.id)}" aria-label="Remover um">−</button>
             <span>${qty}</span>
@@ -569,7 +644,8 @@ function bindProductGridActions(root) {
       const product = deliveryState.products.find((p) => p.id === id);
       if (!product) return;
       const action = btn.dataset.action;
-      if (action === "add") changeQty(product, 1);
+      if (action === "choose") openComboModal(product);
+      else if (action === "add") changeQty(product, 1);
       else if (action === "plus") changeQty(product, 1);
       else if (action === "minus") changeQty(product, -1);
     });
@@ -644,23 +720,26 @@ function setupMenuToolbar() {
 }
 
 function changeQty(product, diff) {
-  const max = getDeliveryProductAvailability(product);
-  let item = deliveryState.cart.find((i) => i.productId === product.id);
+  const lineId = product.id;
+  const max = Math.max(0, Number(product.qty || 0) - getStockReserved(product.id, deliveryState.cart, lineId));
+  let item = deliveryState.cart.find((i) => i.lineId === lineId);
   if (!item && diff > 0) {
     item = {
+      lineId,
       productId: product.id,
       name: product.name,
       code: product.code || "",
       price: Number(product.price || 0),
       cost: Number(product.cost || 0),
-      qty: 0
+      qty: 0,
+      selections: []
     };
     deliveryState.cart.push(item);
   }
   if (!item) return;
   const next = item.qty + diff;
   if (next <= 0) {
-    deliveryState.cart = deliveryState.cart.filter((i) => i.productId !== product.id);
+    deliveryState.cart = deliveryState.cart.filter((i) => i.lineId !== lineId);
   } else if (next > max) {
     alert(`Estoque máximo: ${max}`);
     return;
@@ -671,8 +750,188 @@ function changeQty(product, diff) {
   renderProducts();
 }
 
+function buildComboSelections(product) {
+  const groups = getComboGroups(product);
+  const selections = [];
+  for (const group of groups) {
+    const selectedId = document.querySelector(`input[name="combo-${group.id}"]:checked`)?.value || "";
+    const option = group.options.find((opt) => opt.productId === selectedId);
+    const chosen = deliveryState.products.find((p) => p.id === selectedId);
+    if (!option || !chosen) return null;
+    if (getOptionRemaining(option) <= 0) return null;
+    selections.push({
+      groupId: group.id,
+      groupName: group.name,
+      productId: chosen.id,
+      name: chosen.name,
+      extraPrice: Number(option.extraPrice || 0),
+      deductQty: optionDeductQty(option, chosen)
+    });
+  }
+  return selections;
+}
+
+function renderComboModal(product) {
+  const groups = getComboGroups(product);
+  const box = document.getElementById("comboModalGroups");
+  const title = document.getElementById("comboModalTitle");
+  const hint = document.getElementById("comboModalHint");
+  if (title) title.textContent = product.name;
+  if (hint) hint.textContent = "Escolha um produto em cada grupo para montar o pedido.";
+  if (!box) return;
+  box.innerHTML = groups.map((group) => {
+    const options = group.options.map((opt) => {
+      const chosen = deliveryState.products.find((p) => p.id === opt.productId);
+      if (!chosen) return "";
+      const remaining = getOptionRemaining(opt);
+      const extra = Number(opt.extraPrice || 0);
+      const disabled = remaining <= 0 ? "disabled" : "";
+      return `<label class="combo-option">
+        <input type="radio" name="combo-${escapeHtml(group.id)}" value="${escapeHtml(opt.productId)}" ${disabled} />
+        <span>${escapeHtml(chosen.name)}${remaining <= 0 ? " (sem estoque)" : ""}</span>
+        <small>${extra > 0 ? `+ ${money(extra)}` : "incluso"}</small>
+      </label>`;
+    }).join("");
+    return `<fieldset class="combo-choice"><strong>${escapeHtml(group.name)}</strong>${options}</fieldset>`;
+  }).join("");
+  box.querySelectorAll("input[type=radio]").forEach((input) => {
+    input.addEventListener("change", () => updateComboModalPrice(product));
+  });
+  groups.forEach((group) => {
+    const first = box.querySelector(`input[name="combo-${CSS.escape(group.id)}"]:not(:disabled)`);
+    if (first) first.checked = true;
+  });
+  updateComboModalPrice(product);
+}
+
+function updateComboModalPrice(product) {
+  const priceEl = document.getElementById("comboModalPrice");
+  const selections = buildComboSelections(product) || [];
+  const price = typeof DeliveryLogic !== "undefined"
+    ? DeliveryLogic.comboUnitPrice(product.price, selections)
+    : Number(product.price || 0);
+  if (priceEl) priceEl.textContent = selections.length === getComboGroups(product).length
+    ? `Preço deste combo: ${money(price)}`
+    : "Selecione uma opção em cada grupo.";
+}
+
+function openComboModal(product) {
+  if (!productHasComboChoices(product)) {
+    changeQty(product, 1);
+    return;
+  }
+  const missing = getComboGroups(product).find((group) => !group.options.some((opt) => getOptionRemaining(opt) > 0));
+  if (missing) {
+    alert(`Sem estoque para escolher «${missing.name}».`);
+    return;
+  }
+  deliveryState.comboProductId = product.id;
+  renderComboModal(product);
+  document.getElementById("comboModal")?.classList.remove("hidden");
+}
+
+function closeComboModal() {
+  deliveryState.comboProductId = null;
+  document.getElementById("comboModal")?.classList.add("hidden");
+}
+
+function confirmComboSelection() {
+  const product = deliveryState.products.find((p) => p.id === deliveryState.comboProductId);
+  if (!product) return;
+  const selections = buildComboSelections(product);
+  if (!selections || selections.length !== getComboGroups(product).length) {
+    alert("Escolha um produto em cada grupo do combo.");
+    return;
+  }
+  const over = selections.find((sel) => {
+    const group = getComboGroups(product).find((item) => item.id === sel.groupId);
+    const option = group?.options.find((opt) => opt.productId === sel.productId);
+    return !option || getOptionRemaining(option) <= 0;
+  });
+  if (over) {
+    alert(`Sem estoque para ${over.name}.`);
+    return;
+  }
+  const lineId = DeliveryLogic.comboSelectionKey(product.id, selections);
+  let item = deliveryState.cart.find((line) => line.lineId === lineId);
+  if (!item) {
+    item = {
+      lineId,
+      productId: product.id,
+      name: product.name,
+      code: product.code || "",
+      price: DeliveryLogic.comboUnitPrice(product.price, selections),
+      cost: Number(product.cost || 0),
+      qty: 0,
+      selections
+    };
+    deliveryState.cart.push(item);
+  }
+  if (getNormalizedDoseRecipe(product, deliveryState.products).length && getDeliveryProductAvailability(product) < 1) {
+    alert("Estoque insuficiente para montar mais um combo.");
+    return;
+  }
+  item.qty += 1;
+  closeComboModal();
+  renderCart();
+  renderProducts();
+}
+
+function changeLineQty(lineId, diff) {
+  const item = deliveryState.cart.find((line) => line.lineId === lineId);
+  if (!item) return;
+  const product = deliveryState.products.find((p) => p.id === item.productId);
+  if (!product) return;
+  if (diff > 0 && productHasComboChoices(product)) {
+    const blocked = (item.selections || []).find((sel) => {
+      const group = getComboGroups(product).find((entry) => entry.id === sel.groupId);
+      const option = group?.options.find((opt) => opt.productId === sel.productId);
+      return !option || getOptionRemaining(option, lineId) < item.qty + 1;
+    });
+    if (blocked) {
+      alert(`Sem estoque para ${blocked.name}.`);
+      return;
+    }
+  } else if (diff > 0 && !productHasComboChoices(product)) {
+    const max = Math.max(0, Number(product.qty || 0) - getStockReserved(product.id, deliveryState.cart, lineId));
+    if (item.qty + diff > max) {
+      alert(`Estoque máximo: ${max}`);
+      return;
+    }
+  }
+  const next = item.qty + diff;
+  if (next <= 0) deliveryState.cart = deliveryState.cart.filter((line) => line.lineId !== lineId);
+  else item.qty = next;
+  renderCart();
+  renderProducts();
+}
+
+function syncDeliveryZoneSelects() {
+  const zones = deliveryState.zonePricing?.zones || [];
+  ["cartDeliveryZone", "checkoutDeliveryZone"].forEach((id) => {
+    const select = document.getElementById(id);
+    if (!select) return;
+    const current = deliveryState.selectedZoneId || "";
+    select.innerHTML = `<option value="">Selecione o bairro</option>${zones.map((zone) =>
+      `<option value="${escapeHtml(zone.id)}" ${zone.id === current ? "selected" : ""}>${escapeHtml(zone.name)} — ${money(zone.fee)}</option>`
+    ).join("")}`;
+    select.value = current;
+  });
+  const show = (deliveryState.zonePricing?.mode === "zones") && zones.length > 0;
+  document.getElementById("deliveryZoneBox")?.classList.toggle("hidden", !show);
+  document.getElementById("checkoutZoneLabel")?.classList.toggle("hidden", !show);
+}
+
+function setDeliveryZone(zoneId) {
+  deliveryState.selectedZoneId = zoneId || "";
+  syncDeliveryZoneSelects();
+  renderCart();
+}
+
 function renderCart() {
-  const { subtotal, fee, total, minOrder } = getCartTotals();
+  const { subtotal, fee, total, minOrder, pricing } = getCartTotals();
+  deliveryState.zonePricing = pricing;
+  syncDeliveryZoneSelects();
   const count = deliveryState.cart.reduce((s, i) => s + i.qty, 0);
   const fab = document.getElementById("btnOpenCart");
   const list = document.getElementById("cartItems");
@@ -686,18 +945,39 @@ function renderCart() {
     document.getElementById("cartFabTotal").textContent = money(total);
   }
 
-  list.innerHTML = deliveryState.cart.map((item) => `
+  list.innerHTML = deliveryState.cart.map((item) => {
+    const choices = (item.selections || []).map((sel) =>
+      `<small>${escapeHtml(sel.groupName)}: ${escapeHtml(sel.name)}</small>`
+    ).join("");
+    return `
     <li>
-      <span>${item.name} × ${item.qty}</span>
-      <strong>${money(item.price * item.qty)}</strong>
-    </li>
-  `).join("");
+      <div>
+        <span>${escapeHtml(item.name)} × ${item.qty}</span>
+        ${choices ? `<div class="cart-item-choices">${choices}</div>` : ""}
+      </div>
+      <div class="cart-item-actions">
+        <button type="button" data-line-diff="-1" data-line-id="${escapeHtml(item.lineId)}" aria-label="Diminuir">−</button>
+        <button type="button" data-line-diff="1" data-line-id="${escapeHtml(item.lineId)}" aria-label="Aumentar">+</button>
+        <strong>${money(item.price * item.qty)}</strong>
+      </div>
+    </li>`;
+  }).join("");
+  list.querySelectorAll("[data-line-id]").forEach((btn) => {
+    btn.addEventListener("click", () => changeLineQty(btn.dataset.lineId, Number(btn.dataset.lineDiff)));
+  });
 
   document.getElementById("cartSubtotal").textContent = money(subtotal);
   document.getElementById("cartTotal").textContent = money(total);
   const feeLine = document.getElementById("deliveryFeeLine");
-  if (fee > 0) {
+  const feeLabel = document.getElementById("cartDeliveryFeeLabel");
+  const zoneName = pricing?.zone?.name;
+  if (pricing?.needsZone) {
     feeLine?.classList.remove("hidden");
+    if (feeLabel) feeLabel.textContent = "Taxa entrega";
+    document.getElementById("cartDeliveryFee").textContent = "escolha o bairro";
+  } else if (fee > 0 || pricing?.mode === "zones") {
+    feeLine?.classList.remove("hidden");
+    if (feeLabel) feeLabel.textContent = zoneName ? `Taxa (${zoneName})` : "Taxa entrega";
     document.getElementById("cartDeliveryFee").textContent = money(fee);
   } else {
     feeLine?.classList.add("hidden");
@@ -714,7 +994,10 @@ function renderCart() {
 
   const warn = document.getElementById("checkoutMinWarning");
   if (warn) {
-    if (belowMin) {
+    if (pricing?.needsZone) {
+      warn.textContent = "Selecione o bairro para o sistema calcular a taxa de entrega.";
+      warn.classList.remove("hidden");
+    } else if (belowMin) {
       warn.textContent = `Pedido mínimo: ${money(minOrder)}. Faltam ${money(minOrder - subtotal)}.`;
       warn.classList.remove("hidden");
     } else {
@@ -782,7 +1065,11 @@ async function submitOrder(e) {
   e.preventDefault();
   if (!deliveryState.cart.length || !deliveryState.storeUid) return;
 
-  const { subtotal, fee, total, minOrder } = getCartTotals();
+  const { subtotal, fee, total, minOrder, pricing } = getCartTotals();
+  if (pricing?.needsZone) {
+    alert("Selecione o bairro para calcular a taxa de entrega.");
+    return;
+  }
   if (minOrder > 0 && subtotal < minOrder) {
     alert(`Pedido mínimo: ${money(minOrder)}`);
     return;
@@ -810,16 +1097,29 @@ async function submitOrder(e) {
     price: item.price,
     cost: item.cost,
     qty: item.qty,
-    subtotal: item.price * item.qty
+    subtotal: item.price * item.qty,
+    selections: (item.selections || []).map((sel) => ({
+      groupId: sel.groupId,
+      groupName: sel.groupName,
+      productId: sel.productId,
+      name: sel.name,
+      extraPrice: Number(sel.extraPrice || 0),
+      deductQty: Number(sel.deductQty || 0)
+    }))
   }));
 
   const order = {
     createdAt: new Date().toISOString(),
     status: "awaiting_approval",
-    customer,
+    customer: {
+      ...customer,
+      district: pricing?.zone?.name || ""
+    },
     items,
     subtotal,
     deliveryFee: fee,
+    deliveryZoneId: pricing?.zone?.id || "",
+    deliveryZoneName: pricing?.zone?.name || "",
     total,
     paymentMethod: document.getElementById("customerPayment").value,
     source: "delivery_web"
@@ -861,6 +1161,7 @@ async function submitOrder(e) {
       items,
       subtotal,
       deliveryFee: fee,
+      deliveryZoneName: order.deliveryZoneName,
       total,
       paymentMethod: order.paymentMethod
     });
@@ -894,6 +1195,10 @@ function setupUI() {
     document.getElementById("checkoutModal")?.classList.add("hidden");
   });
   document.getElementById("checkoutForm")?.addEventListener("submit", submitOrder);
+  document.getElementById("btnCancelCombo")?.addEventListener("click", closeComboModal);
+  document.getElementById("btnConfirmCombo")?.addEventListener("click", confirmComboSelection);
+  document.getElementById("cartDeliveryZone")?.addEventListener("change", (e) => setDeliveryZone(e.target.value));
+  document.getElementById("checkoutDeliveryZone")?.addEventListener("change", (e) => setDeliveryZone(e.target.value));
   document.getElementById("btnSuccessClose")?.addEventListener("click", () => {
     document.getElementById("successModal")?.classList.add("hidden");
     if (deliveryState.trackingOrderId) {
@@ -926,4 +1231,4 @@ async function initDelivery() {
   await loadStore(slug);
 }
 
-initDelivery();
+if (!window.PDV_SKIP_DELIVERY_INIT) initDelivery();

@@ -3357,6 +3357,57 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 12px;
 }
 
+.combo-groups-block {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.combo-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.combo-group-head,
+.combo-option-row,
+.delivery-fee-zone-row {
+  display: grid;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.combo-group-head {
+  grid-template-columns: 1fr 28px;
+}
+
+.combo-option-row {
+  grid-template-columns: 1fr 72px 80px 28px;
+}
+
+.delivery-fee-zone-row {
+  grid-template-columns: 1fr 110px 28px;
+}
+
+.combo-group-name,
+.combo-option-product,
+.combo-option-qty,
+.combo-option-extra,
+.delivery-fee-zone-name,
+.delivery-fee-zone-fee {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 8px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+
 .report-channel-chip--balcao {
   color: var(--accent);
   border-color: rgba(37, 99, 235, 0.35);

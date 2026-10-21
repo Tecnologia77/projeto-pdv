@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=202610142230" />
+    <link rel="stylesheet" href="styles.css?v=202610211300" />
     <style>
       #bootScreen {
         position: fixed; inset: 0; z-index: 10000;
@@ -493,10 +493,16 @@
                   </div>
                 </div>
                 <div id="productDoseFields" class="hidden full">
-                  <label>Composição da dose</label>
-                  <small style="color:var(--muted);display:block;margin:4px 0 10px;">Ex.: Whisky 50 ml + Red Bull 1 un. + Gelo 1 un. Garrafa aberta = ml; lata, gelo, etc. = unidade.</small>
+                  <label>Itens fixos da dose / combo</label>
+                  <small style="color:var(--muted);display:block;margin:4px 0 10px;">O que sempre sai no pedido. Ex.: gelo 1 un. Garrafa aberta = ml; lata, gelo, etc. = unidade. Pode ficar vazio se o cliente for escolher os produtos abaixo.</small>
                   <div id="doseRecipeList"></div>
                   <button type="button" id="btnAddDoseRecipeRow" class="btn btn-cash-sm" style="margin-top:8px;">+ Adicionar insumo</button>
+                  <div class="combo-groups-block">
+                    <label>Escolhas do cliente no cardápio</label>
+                    <small style="color:var(--muted);display:block;margin:4px 0 10px;">Crie um grupo para cada pergunta (marca, sabor, energético) e coloque os produtos que o cliente pode escolher. No pedido online ele marca um produto de cada grupo.</small>
+                    <div id="comboGroupList"></div>
+                    <button type="button" id="btnAddComboGroup" class="btn btn-cash-sm" style="margin-top:8px;">+ Adicionar grupo (marca, sabor...)</button>
+                  </div>
                 </div>
                 <div class="field-group" id="productMinStockWrap">
                   <label id="productMinStockLabel">Estoque mínimo</label>
@@ -1292,15 +1298,28 @@
                     <input type="text" id="companyDeliverySlug" placeholder="ex: logindateste" autocomplete="off" />
                     <small style="color:var(--muted);display:block;margin-top:4px;">Use algo curto (ex.: nome da loja ou e-mail sem @). Salve a empresa após alterar. Link fica: pdvstock.com.br/loja/<strong>codigo</strong></small>
                   </div>
+                  <div class="field-group full">
+                    <label for="companyDeliveryFeeMode">Cadastro da taxa de entrega</label>
+                    <select id="companyDeliveryFeeMode">
+                      <option value="flat">Taxa única para qualquer endereço</option>
+                      <option value="zones">Por bairro — o sistema calcula a taxa cadastrada</option>
+                    </select>
+                    <small style="color:var(--muted);display:block;margin-top:4px;">No cardápio a taxa entra sozinha no total. Em «por bairro», o cliente escolhe o bairro e o valor cadastrado aqui é somado.</small>
+                  </div>
                   <div class="field-row" style="margin-top:8px;">
-                    <div class="field-group">
-                      <label>Taxa de entrega (R$)</label>
+                    <div class="field-group" id="companyDeliveryFeeFlatWrap">
+                      <label>Taxa única (R$)</label>
                       <input type="number" id="companyDeliveryFee" min="0" step="0.01" value="0" />
                     </div>
                     <div class="field-group">
                       <label>Pedido mínimo (R$)</label>
                       <input type="number" id="companyDeliveryMinOrder" min="0" step="0.01" value="0" />
                     </div>
+                  </div>
+                  <div class="field-group full hidden" id="companyDeliveryFeeZonesWrap">
+                    <label>Bairros e valores</label>
+                    <div id="deliveryFeeZoneList"></div>
+                    <button type="button" class="btn" id="btnAddDeliveryFeeZone" style="margin-top:8px;">+ Adicionar bairro</button>
                   </div>
                   <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
                     <input type="checkbox" id="companyAutoPrintDeliveryReceipt" />
@@ -1605,6 +1624,7 @@
     <script src="qz-security.js?v=202606206"></script>
     <script src="firebase-config.js?v=202606155"></script>
     <script src="ai.js?v=202606164"></script>
-    <script src="app.js?v=202610142304"></script>
+    <script src="delivery-logic.js?v=202610211300"></script>
+    <script src="app.js?v=202610211300"></script>
   </body>
 </html>

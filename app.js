@@ -1362,13 +1362,26 @@ function resolveStockDeductionsForLineItem(product, qty) {
   return map;
 }
 
+function selectionDeductAmount(sel) {
+  const qty = Math.max(0, Number(sel?.deductQty || 0));
+  return qty > 0 ? qty : 1;
+}
+
 function resolveStockDeductionsFromSaleItems(items) {
   const map = new Map();
   (items || []).forEach((item) => {
     const product = state.products.find((p) => p.id === item.productId);
-    if (!product) return;
-    resolveStockDeductionsForLineItem(product, item.qty).forEach((amt, productId) => {
-      map.set(productId, (map.get(productId) || 0) + amt);
+    if (product) {
+      resolveStockDeductionsForLineItem(product, item.qty).forEach((amt, productId) => {
+        map.set(productId, (map.get(productId) || 0) + amt);
+      });
+    }
+    const lineQty = Math.max(0, Number(item.qty || 0));
+    (item.selections || []).forEach((sel) => {
+      const productId = String(sel?.productId || "").trim();
+      const per = selectionDeductAmount(sel);
+      if (!productId || lineQty <= 0 || per <= 0) return;
+      map.set(productId, (map.get(productId) || 0) + per * lineQty);
     });
   });
   return map;
@@ -4495,6 +4508,8 @@ async function syncStorePublic(company, options = {}) {
       address: company.address || "",
       deliveryEnabled: company.deliveryEnabled !== false,
       deliveryFee: Number(company.deliveryFee || 0),
+      deliveryFeeMode: company.deliveryFeeMode === "zones" ? "zones" : "flat",
+      deliveryFeeZones: Array.isArray(company.deliveryFeeZones) ? company.deliveryFeeZones : [],
       deliveryMinOrder: Number(company.deliveryMinOrder || 0),
       productCategories: Array.isArray(company.productCategories) ? company.productCategories : [],
       updatedAt: new Date().toISOString()
@@ -4631,6 +4646,7 @@ window.copyStoreDeliveryLink = async () => {
 };
 
 function setupCompany() {
+  setupDeliveryFeeEditor();
   document.getElementById("companyManagerAreaLock")?.addEventListener("change", syncManagerAreaLockUI);
 
   document.getElementById("btnRegenerateDeliveryLink")?.addEventListener("click", () => {
@@ -4666,7 +4682,16 @@ function setupCompany() {
       alert("Com multi-caixa ativo, cadastre pelo menos 2 caixas com impressora.");
       return;
     }
+    const deliveryFeeMode = document.getElementById("companyDeliveryFeeMode")?.value === "zones" ? "zones" : "flat";
+    const deliveryFeeZones = typeof DeliveryLogic !== "undefined"
+      ? DeliveryLogic.normalizeDeliveryFeeZones(readDeliveryFeeZonesFromDOM())
+      : readDeliveryFeeZonesFromDOM();
+    if (deliveryFeeMode === "zones" && !deliveryFeeZones.length) {
+      alert("Cadastre pelo menos um bairro com a taxa de entrega.");
+      return;
+    }
     const company = {
+      ...(state.company || {}),
       name: document.getElementById("companyName").value.trim() || "BROTHER'S",
       logo: document.getElementById("companyLogo").value.trim(),
       pix: document.getElementById("companyPix").value.trim(),
@@ -4680,6 +4705,8 @@ function setupCompany() {
       deliveryEnabled,
       deliverySlug,
       deliveryFee: Number(document.getElementById("companyDeliveryFee")?.value || 0),
+      deliveryFeeMode,
+      deliveryFeeZones,
       deliveryMinOrder: Number(document.getElementById("companyDeliveryMinOrder")?.value || 0),
       cashRegisterRequired: !!document.getElementById("companyCashRegisterRequired")?.checked,
       multiRegisterEnabled,
@@ -4745,6 +4772,12 @@ function renderCompany() {
   if (slugEl) slugEl.value = c.deliverySlug || "";
   const feeEl = document.getElementById("companyDeliveryFee");
   if (feeEl) feeEl.value = Number(c.deliveryFee || 0);
+  const feeModeEl = document.getElementById("companyDeliveryFeeMode");
+  if (feeModeEl) {
+    feeModeEl.value = c.deliveryFeeMode === "zones" ? "zones" : "flat";
+  }
+  renderDeliveryFeeZoneList(c.deliveryFeeZones || []);
+  updateDeliveryFeeModeUI();
   const minEl = document.getElementById("companyDeliveryMinOrder");
   if (minEl) minEl.value = Number(c.deliveryMinOrder || 0);
   const cashReqEl = document.getElementById("companyCashRegisterRequired");
@@ -5824,15 +5857,19 @@ function buildDeliveryReceiptEscPos(order) {
   }
   chunks.push(escPosLine(receiptHr("-")));
 
+  if (order.deliveryZoneName) chunks.push(escPosBoldLine(`Bairro: ${order.deliveryZoneName}`));
   items.forEach((item) => {
     chunks.push(escPosBoldLine(String(item.name || "Produto").substring(0, RECEIPT_WIDTH)));
+    (item.selections || []).forEach((sel) => {
+      chunks.push(escPosLine(`  ${sel.groupName}: ${sel.name}`.substring(0, RECEIPT_WIDTH)));
+    });
     const sub = Number(item.subtotal || item.price * item.qty || 0);
     chunks.push(escPosLine(receiptRow(`${item.qty} UN x ${moneyEscPos(item.price)}`, moneyEscPos(sub))));
   });
 
   chunks.push(escPosLine(receiptHr("-")));
   pushBoldRow("Subtotal:", moneyEscPos(subtotal));
-  if (deliveryFee > 0) pushBoldRow("Taxa entrega:", moneyEscPos(deliveryFee));
+  if (deliveryFee > 0 || order.deliveryZoneName) pushBoldRow("Taxa entrega:", moneyEscPos(deliveryFee));
   pushBoldRow("FINAL:", moneyEscPos(total));
   chunks.push(escPosBoldLine(`Pagamento: ${order.paymentMethod || "—"}`));
   const hasPix = String(order.paymentMethod || "").toLowerCase().includes("pix");
@@ -5851,7 +5888,8 @@ function buildDeliveryReceiptHtml(order) {
   const total = Number(order.total ?? subtotal + deliveryFee);
   const itemsHtml = items.map((item) => {
     const sub = Number(item.subtotal || item.price * item.qty || 0);
-    return `<div class="item"><div class="item-name">${item.name}</div><div class="item-row"><span>${item.qty} UN × ${money(item.price)}</span><strong>${money(sub)}</strong></div></div>`;
+    const choices = (item.selections || []).map((sel) => `<div class="meta-line">${sel.groupName}: ${sel.name}</div>`).join("");
+    return `<div class="item"><div class="item-name">${item.name}</div>${choices}<div class="item-row"><span>${item.qty} UN × ${money(item.price)}</span><strong>${money(sub)}</strong></div></div>`;
   }).join("");
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cupom Delivery</title>
 <style>
@@ -5876,12 +5914,13 @@ function buildDeliveryReceiptHtml(order) {
   ${customer.name ? `<div class="meta-line"><strong>Cliente:</strong> ${customer.name}</div>` : ""}
   ${customer.phone ? `<div class="meta-line"><strong>Tel:</strong> ${customer.phone}</div>` : ""}
   ${customer.address ? `<div class="meta-line"><strong>Endereço:</strong> ${customer.address}</div>` : ""}
+  ${order.deliveryZoneName ? `<div class="meta-line"><strong>Bairro:</strong> ${order.deliveryZoneName}</div>` : ""}
   ${customer.notes ? `<div class="meta-line"><strong>Obs:</strong> ${customer.notes}</div>` : ""}
   <hr class="hr">
   ${itemsHtml}
   <hr class="hr">
   <div class="row"><span>Subtotal:</span><strong>${money(subtotal)}</strong></div>
-  ${deliveryFee > 0 ? `<div class="row"><span>Taxa entrega:</span><span>${money(deliveryFee)}</span></div>` : ""}
+  ${deliveryFee > 0 || order.deliveryZoneName ? `<div class="row"><span>Taxa entrega:</span><span>${money(deliveryFee)}</span></div>` : ""}
   <div class="row final"><span>FINAL:</span><strong>${money(total)}</strong></div>
   <div class="meta-line" style="margin-top:8px;">Pagamento: ${order.paymentMethod || "—"}</div>
   ${String(order.paymentMethod || "").toLowerCase().includes("pix") && c.pix ? `<div class="meta-line">PIX: ${c.pix}</div>` : ""}
@@ -5980,10 +6019,14 @@ function buildDeliveryOrderWhatsAppMessage(order, storeName) {
   lines.push("*Itens:*");
   items.forEach((item) => {
     lines.push(`• ${item.name} x${item.qty} — ${money(item.subtotal || item.price * item.qty)}`);
+    (item.selections || []).forEach((sel) => {
+      lines.push(`   ${sel.groupName}: ${sel.name}`);
+    });
   });
   lines.push("");
   lines.push(`Subtotal: ${money(order.subtotal)}`);
-  if (Number(order.deliveryFee) > 0) lines.push(`Taxa entrega: ${money(order.deliveryFee)}`);
+  if (order.deliveryZoneName) lines.push(`Bairro: ${order.deliveryZoneName}`);
+  if (Number(order.deliveryFee) > 0 || order.deliveryZoneName) lines.push(`Taxa entrega: ${money(order.deliveryFee)}`);
   lines.push(`*TOTAL: ${money(order.total)}*`);
   return lines.join("\n");
 }
@@ -6801,7 +6844,12 @@ window.showDeliveryOrderDetails = (orderId, options = {}) => {
     return;
   }
   const itemsHtml = (order.items || [])
-    .map((i) => `<li>${i.name} x${i.qty} — ${money(i.subtotal || i.price * i.qty)}</li>`)
+    .map((i) => {
+      const choices = (i.selections || [])
+        .map((sel) => `<div style="font-size:12px;color:var(--muted);">${escapeHtml(sel.groupName)}: ${escapeHtml(sel.name)}</div>`)
+        .join("");
+      return `<li>${escapeHtml(i.name)} x${i.qty} — ${money(i.subtotal || i.price * i.qty)}${choices}</li>`;
+    })
     .join("");
   const status = normalizeDeliveryStatus(order.status);
   box.innerHTML = `
@@ -6810,7 +6858,8 @@ window.showDeliveryOrderDetails = (orderId, options = {}) => {
     <p style="margin-top:12px;"><strong>Etapa atual:</strong> ${getDeliveryStatusLabel(status)}</p>
     <p><strong>Cliente:</strong> ${order.customer?.name || "-"}</p>
     <p><strong>Telefone:</strong> ${order.customer?.phone || "-"}</p>
-    <p><strong>Endereço:</strong> ${order.customer?.address || "-"}</p>
+    <p><strong>Endereço:</strong> ${escapeHtml(order.customer?.address || "-")}</p>
+    ${order.deliveryZoneName ? `<p><strong>Bairro:</strong> ${escapeHtml(order.deliveryZoneName)}</p>` : ""}
     <p><strong>Observações:</strong> ${order.customer?.notes || "-"}</p>
     <p><strong>Pagamento:</strong> ${order.paymentMethod || "-"}</p>
     <ul style="margin:12px 0;padding-left:16px;">${itemsHtml}</ul>
@@ -7217,26 +7266,183 @@ function isValidDoseRecipeRow(row) {
   return false;
 }
 
+function newComboEditorId(prefix) {
+  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function getComboChoiceProducts() {
+  return state.products
+    .filter((p) => p && !isDoseProduct(p))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+}
+
+function readComboGroupsFromDOM(keepIncomplete = false) {
+  return Array.from(document.querySelectorAll("#comboGroupList .combo-group")).map((groupEl) => {
+    const options = Array.from(groupEl.querySelectorAll(".combo-option-row")).map((row) => {
+      const productId = row.querySelector(".combo-option-product")?.value || "";
+      const product = state.products.find((p) => p.id === productId);
+      const qtyRaw = Number(row.querySelector(".combo-option-qty")?.value);
+      const extraPrice = Math.max(0, Number(row.querySelector(".combo-option-extra")?.value || 0));
+      let qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 0;
+      if (!qty && product) qty = isMlStockProduct(product) ? 50 : 1;
+      if (!productId && !keepIncomplete) return null;
+      return { productId, extraPrice, qty };
+    }).filter(Boolean);
+    const name = groupEl.querySelector(".combo-group-name")?.value.trim() || "";
+    const keptOptions = keepIncomplete ? options : options.filter((opt) => opt.productId);
+    if (!keepIncomplete && (!name || !keptOptions.length)) return null;
+    return {
+      id: groupEl.dataset.id || newComboEditorId("grp"),
+      name,
+      options: keptOptions
+    };
+  }).filter(Boolean);
+}
+
+function renderComboGroupList(groups = []) {
+  const list = document.getElementById("comboGroupList");
+  if (!list) return;
+  const products = getComboChoiceProducts();
+  const rows = groups.length ? groups : [];
+  list.innerHTML = rows.map((group) => {
+    const options = group.options?.length ? group.options : [{ productId: "", extraPrice: 0, qty: 1 }];
+    const optionHtml = options.map((opt, idx) => {
+      const selected = products.find((p) => p.id === opt.productId);
+      const qtyLabel = selected && isMlStockProduct(selected) ? "ml" : "un.";
+      const qtyValue = opt.qty > 0 ? opt.qty : "";
+      const selectOptions = products.map((p) =>
+        `<option value="${p.id}" ${opt.productId === p.id ? "selected" : ""}>${escapeHtml(p.name)}</option>`
+      ).join("");
+      return `<div class="combo-option-row">
+        <select class="combo-option-product">
+          <option value="">Selecione o produto</option>
+          ${selectOptions}
+        </select>
+        <input type="number" class="combo-option-qty" min="1" step="1" value="${qtyValue}" placeholder="${qtyLabel}" title="Quantidade que sai do estoque" />
+        <input type="number" class="combo-option-extra" min="0" step="0.01" value="${Number(opt.extraPrice || 0)}" title="Acréscimo no preço do combo" />
+        <button type="button" class="btn-ctrl rm combo-option-remove" data-group="${group.id}" data-idx="${idx}" title="Remover produto">×</button>
+      </div>`;
+    }).join("");
+    return `<div class="combo-group" data-id="${escapeHtml(group.id)}">
+      <div class="combo-group-head">
+        <input type="text" class="combo-group-name" value="${escapeHtml(group.name || "")}" placeholder="Ex.: Marca, Sabor" />
+        <button type="button" class="btn-ctrl rm combo-group-remove" title="Remover grupo">×</button>
+      </div>
+      ${optionHtml}
+      <button type="button" class="btn btn-cash-sm combo-option-add">+ Produto nesta escolha</button>
+    </div>`;
+  }).join("");
+}
+
+function setupComboGroupEditor() {
+  document.getElementById("btnAddComboGroup")?.addEventListener("click", () => {
+    const groups = readComboGroupsFromDOM(true);
+    groups.push({
+      id: newComboEditorId("grp"),
+      name: "",
+      options: [{ productId: "", extraPrice: 0, qty: 1 }]
+    });
+    renderComboGroupList(groups);
+  });
+  document.getElementById("comboGroupList")?.addEventListener("click", (e) => {
+    const groups = readComboGroupsFromDOM(true);
+    if (e.target.closest(".combo-group-remove")) {
+      const id = e.target.closest(".combo-group")?.dataset.id;
+      renderComboGroupList(groups.filter((group) => group.id !== id));
+      return;
+    }
+    if (e.target.closest(".combo-option-remove")) {
+      const groupEl = e.target.closest(".combo-group");
+      const idx = Number(e.target.closest(".combo-option-remove").dataset.idx);
+      const group = groups.find((item) => item.id === groupEl?.dataset.id);
+      if (!group) return;
+      group.options.splice(idx, 1);
+      if (!group.options.length) group.options.push({ productId: "", extraPrice: 0, qty: 1 });
+      renderComboGroupList(groups);
+      return;
+    }
+    if (e.target.closest(".combo-option-add")) {
+      const groupEl = e.target.closest(".combo-group");
+      const group = groups.find((item) => item.id === groupEl?.dataset.id);
+      if (!group) return;
+      group.options.push({ productId: "", extraPrice: 0, qty: 1 });
+      renderComboGroupList(groups);
+    }
+  });
+  document.getElementById("comboGroupList")?.addEventListener("change", (e) => {
+    if (e.target.classList.contains("combo-option-product")) {
+      renderComboGroupList(readComboGroupsFromDOM(true));
+    }
+  });
+}
+
+function readDeliveryFeeZonesFromDOM() {
+  return Array.from(document.querySelectorAll("#deliveryFeeZoneList .delivery-fee-zone-row")).map((row) => ({
+    id: row.dataset.id || "",
+    name: row.querySelector(".delivery-fee-zone-name")?.value || "",
+    fee: Number(row.querySelector(".delivery-fee-zone-fee")?.value || 0)
+  }));
+}
+
+function renderDeliveryFeeZoneList(zones = []) {
+  const list = document.getElementById("deliveryFeeZoneList");
+  if (!list) return;
+  const rows = zones.length ? zones : [];
+  list.innerHTML = rows.map((zone) => `
+    <div class="delivery-fee-zone-row" data-id="${escapeHtml(zone.id || newComboEditorId("zona"))}">
+      <input type="text" class="delivery-fee-zone-name" value="${escapeHtml(zone.name || "")}" placeholder="Bairro ou região" />
+      <input type="number" class="delivery-fee-zone-fee" min="0" step="0.01" value="${Number(zone.fee || 0)}" placeholder="R$" />
+      <button type="button" class="btn-ctrl rm delivery-fee-zone-remove" title="Remover">×</button>
+    </div>
+  `).join("");
+}
+
+function updateDeliveryFeeModeUI() {
+  const mode = document.getElementById("companyDeliveryFeeMode")?.value === "zones" ? "zones" : "flat";
+  document.getElementById("companyDeliveryFeeFlatWrap")?.classList.toggle("hidden", mode === "zones");
+  document.getElementById("companyDeliveryFeeZonesWrap")?.classList.toggle("hidden", mode !== "zones");
+}
+
+function setupDeliveryFeeEditor() {
+  document.getElementById("companyDeliveryFeeMode")?.addEventListener("change", updateDeliveryFeeModeUI);
+  document.getElementById("btnAddDeliveryFeeZone")?.addEventListener("click", () => {
+    const zones = readDeliveryFeeZonesFromDOM();
+    zones.push({ id: newComboEditorId("zona"), name: "", fee: 0 });
+    renderDeliveryFeeZoneList(zones);
+  });
+  document.getElementById("deliveryFeeZoneList")?.addEventListener("click", (e) => {
+    if (!e.target.closest(".delivery-fee-zone-remove")) return;
+    const id = e.target.closest(".delivery-fee-zone-row")?.dataset.id;
+    renderDeliveryFeeZoneList(readDeliveryFeeZonesFromDOM().filter((zone) => zone.id !== id));
+  });
+}
+
 function readProductStockFields(mode) {
   if (mode === STOCK_MODE_ML) {
     return {
       qty: Math.max(0, Math.floor(Number(document.getElementById("productQtyMl")?.value || 0))),
       bottleVolumeMl: Math.max(0, Math.floor(Number(document.getElementById("productBottleVolumeMl")?.value || 0))),
-      doseRecipe: []
+      doseRecipe: [],
+      comboGroups: []
     };
   }
   if (mode === STOCK_MODE_DOSE) {
+    const comboGroups = typeof DeliveryLogic !== "undefined"
+      ? DeliveryLogic.normalizeComboGroups(readComboGroupsFromDOM(false))
+      : readComboGroupsFromDOM(false);
     return {
       qty: 0,
       bottleVolumeMl: 0,
-      doseRecipe: readDoseRecipeFromDOM().filter(isValidDoseRecipeRow)
+      doseRecipe: readDoseRecipeFromDOM().filter(isValidDoseRecipeRow),
+      comboGroups
     };
   }
   const qtyRaw = Number(document.getElementById("productQty")?.value);
   return {
     qty: Number.isFinite(qtyRaw) ? Math.max(0, Math.floor(qtyRaw)) : 0,
     bottleVolumeMl: Math.max(0, Math.floor(Number(document.getElementById("productUnitBottleVolumeMl")?.value || 0))),
-    doseRecipe: []
+    doseRecipe: [],
+    comboGroups: []
   };
 }
 
@@ -7251,6 +7457,7 @@ function fillProductStockFields(product) {
   document.getElementById("productQtyMl").value = Math.max(0, Number(product.qty || 0));
   document.getElementById("productBottleVolumeMl").value = getBottleVolumeMl(product) || 1000;
   renderDoseRecipeList(getDoseRecipe(product));
+  renderComboGroupList(Array.isArray(product.comboGroups) ? product.comboGroups : []);
   updateProductStockModeUI();
 }
 
@@ -7272,6 +7479,7 @@ function setupProducts() {
   document.getElementById("btnAddDoseRecipeRow")?.addEventListener("click", () => {
     renderDoseRecipeList([...readDoseRecipeFromDOM(), { productId: "", ml: 50, qty: 1 }]);
   });
+  setupComboGroupEditor();
 
   document.getElementById("productForm").addEventListener("submit", async (e) => {
     const form = e.target;
@@ -7303,6 +7511,7 @@ function setupProducts() {
       qty: stockFields.qty,
       bottleVolumeMl: stockFields.bottleVolumeMl,
       doseRecipe: stockFields.doseRecipe,
+      comboGroups: stockFields.comboGroups || [],
       unitsPerPack: stockMode === STOCK_MODE_UNIT
         ? Math.max(0, Math.floor(Number(document.getElementById("productUnitsPerPack")?.value || 0)))
         : 0,
@@ -7326,13 +7535,32 @@ function setupProducts() {
       return;
     }
     if (stockMode === STOCK_MODE_DOSE) {
-      if (!product.doseRecipe.length) {
-        alert("Informe pelo menos um insumo na composição da dose.");
+      const draftGroups = readComboGroupsFromDOM(true);
+      const incompleteGroup = draftGroups.find((group) => group.name && !group.options.some((opt) => opt.productId));
+      if (incompleteGroup) {
+        alert(`O grupo «${incompleteGroup.name}» precisa de pelo menos um produto para o cliente escolher.`);
+        return;
+      }
+      const namedGroup = draftGroups.find((group) => !group.name && group.options.some((opt) => opt.productId));
+      if (namedGroup) {
+        alert("Dê um nome para cada grupo de escolha. Ex.: Marca ou Sabor.");
+        return;
+      }
+      if (!product.doseRecipe.length && !product.comboGroups.length) {
+        alert("Informe os itens fixos ou crie pelo menos um grupo de escolha do combo.");
         return;
       }
       const invalid = product.doseRecipe.find((row) => !isValidDoseRecipeRow(row));
       if (invalid) {
         alert("Cada insumo deve ser garrafa aberta (ml) ou produto em unidade (lata, gelo, etc.).");
+        return;
+      }
+      const duplicatedOption = product.comboGroups.find((group) => {
+        const ids = group.options.map((opt) => opt.productId);
+        return ids.length !== new Set(ids).size;
+      });
+      if (duplicatedOption) {
+        alert(`O grupo «${duplicatedOption.name}» tem o mesmo produto mais de uma vez.`);
         return;
       }
     }
@@ -7399,6 +7627,7 @@ function clearProductForm(collapse = false) {
   const modeEl = document.getElementById("productStockMode");
   if (modeEl) modeEl.value = STOCK_MODE_UNIT;
   renderDoseRecipeList([]);
+  renderComboGroupList([]);
   updateProductStockModeUI();
   updateProductFormMeta();
   if (collapse) setProductFormExpanded(false);

@@ -413,11 +413,99 @@ body {
 .cart-items li {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem;
+}
+
+.cart-item-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  color: var(--muted, #667);
+  font-size: 0.78rem;
+}
+
+.cart-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cart-item-actions button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+}
+
+.delivery-zone-box {
+  margin-bottom: 12px;
+}
+
+.delivery-zone-box label,
+.combo-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.delivery-zone-box select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+}
+
+.combo-choice {
+  margin-bottom: 14px;
+  font-weight: 500;
+}
+
+.combo-choice strong {
+  font-size: 0.95rem;
+}
+
+.combo-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.combo-option small {
+  margin-left: auto;
+  color: var(--muted, #667);
+}
+
+.combo-modal-hint,
+.combo-modal-price {
+  color: var(--muted, #667);
+  font-size: 0.9rem;
+}
+
+.combo-modal-price {
+  font-weight: 700;
+  color: inherit;
+  margin: 8px 0 0;
+}
+
+.product-card .combo-badge {
+  font-size: 0.75rem;
+  color: var(--accent, #2563eb);
+  font-weight: 600;
 }
 
 .cart-panel-totals {

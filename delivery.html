@@ -21,7 +21,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/delivery.css?v=202610132000" />
+    <link rel="stylesheet" href="/delivery.css?v=202610211300" />
   </head>
   <body>
     <div id="deliveryApp" class="delivery-app hidden">
@@ -64,9 +64,15 @@
           <button type="button" id="btnCloseCart" class="btn-icon" aria-label="Fechar">×</button>
         </div>
         <ul id="cartItems" class="cart-items"></ul>
+        <div id="deliveryZoneBox" class="delivery-zone-box hidden">
+          <label for="cartDeliveryZone">Bairro da entrega</label>
+          <select id="cartDeliveryZone">
+            <option value="">Selecione o bairro</option>
+          </select>
+        </div>
         <div class="cart-panel-totals">
           <div><span>Subtotal</span><span id="cartSubtotal">R$ 0,00</span></div>
-          <div id="deliveryFeeLine" class="hidden"><span>Taxa entrega</span><span id="cartDeliveryFee">R$ 0,00</span></div>
+          <div id="deliveryFeeLine" class="hidden"><span id="cartDeliveryFeeLabel">Taxa entrega</span><span id="cartDeliveryFee">R$ 0,00</span></div>
           <div class="cart-total"><span>Total</span><strong id="cartTotal">R$ 0,00</strong></div>
         </div>
         <button type="button" id="btnOpenCheckout" class="btn-primary" disabled>Finalizar pedido</button>
@@ -90,13 +96,31 @@
       <p id="deliveryErrorText">Verifique o link enviado pela adega.</p>
     </div>
 
+    <div id="comboModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="comboModalTitle">
+      <div class="modal-card">
+        <h2 id="comboModalTitle">Monte o combo</h2>
+        <p id="comboModalHint" class="combo-modal-hint"></p>
+        <div id="comboModalGroups"></div>
+        <p id="comboModalPrice" class="combo-modal-price"></p>
+        <div class="modal-actions">
+          <button type="button" id="btnCancelCombo" class="btn-secondary">Voltar</button>
+          <button type="button" id="btnConfirmCombo" class="btn-primary">Adicionar ao pedido</button>
+        </div>
+      </div>
+    </div>
+
     <div id="checkoutModal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <h2>Finalizar pedido</h2>
         <form id="checkoutForm">
           <label>Nome *<input type="text" id="customerName" required autocomplete="name" /></label>
           <label>Telefone / WhatsApp *<input type="tel" id="customerPhone" required autocomplete="tel" /></label>
-          <label>Endereço de entrega *<textarea id="customerAddress" rows="2" required placeholder="Rua, número, bairro, complemento"></textarea></label>
+          <label id="checkoutZoneLabel" class="hidden">Bairro da entrega *
+            <select id="checkoutDeliveryZone">
+              <option value="">Selecione o bairro</option>
+            </select>
+          </label>
+          <label>Endereço de entrega *<textarea id="customerAddress" rows="2" required placeholder="Rua, número e complemento"></textarea></label>
           <label>Observações<textarea id="customerNotes" rows="2" placeholder="Ex: troco, portão, referência"></textarea></label>
           <label>Forma de pagamento
             <select id="customerPayment">
@@ -131,6 +155,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="/firebase-config.js?v=202605304"></script>
-    <script src="/delivery.js?v=202610132000"></script>
+    <script src="/delivery-logic.js?v=202610211300"></script>
+    <script src="/delivery.js?v=202610211300"></script>
   </body>
 </html>

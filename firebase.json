@@ -7,7 +7,8 @@
       "**/node_modules/**",
       "firestore.rules",
       "storage.rules",
-      "README.md"
+      "README.md",
+      "delivery-logic.test.js"
     ]
   },
   "firestore": {
