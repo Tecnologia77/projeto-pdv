@@ -76,38 +76,120 @@
         };
       }).filter(Boolean);
       if (!options.length) return null;
+      const replacesProductId = String(group?.replacesProductId || "").trim();
+      const replacesProductIds = (Array.isArray(group?.replacesProductIds) ? group.replacesProductIds : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean);
       return {
         id,
         name,
-        replacesProductId: String(group?.replacesProductId || "").trim(),
+        replacesProductId,
+        replacesProductIds: replacesProductIds.length ? replacesProductIds : (replacesProductId ? [replacesProductId] : []),
         options
       };
     }).filter(Boolean);
   }
 
-  function comboChoicesFromProduct(product) {
+  function componentServingAmount(row, ingredient) {
+    const ml = Math.max(0, Number(row?.ml || 0));
+    const units = Math.max(0, Math.floor(Number(row?.qty || 0)));
+    const mode = String(ingredient?.stockMode || "");
+    if (mode === "ml" || (mode !== "unit" && ml > 0)) {
+      const amount = ml > 0 ? ml : 50;
+      return { ml: amount > 2000 ? 50 : amount, qty: 0 };
+    }
+    const qty = units > 0 ? units : 1;
+    return { ml: 0, qty: qty > 30 ? 1 : qty };
+  }
+
+  function ingredientCategoryKey(ingredient) {
+    const id = String(ingredient?.categoryId || "").trim();
+    if (id) return `id:${id}`;
+    const name = String(ingredient?.category || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+    return name ? `name:${name}` : "";
+  }
+
+  function comboStockParts(product, findProduct) {
     const recipe = Array.isArray(product?.doseRecipe) ? product.doseRecipe : [];
-    const fromRecipe = [];
+    const groups = [];
+    const fixed = [];
+    const plain = [];
+    const lookup = typeof findProduct === "function" ? findProduct : () => null;
     recipe.forEach((row, index) => {
-      const rawOptions = (Array.isArray(row?.options) ? row.options : []).filter((opt) => String(opt?.productId || "").trim());
-      if (!rawOptions.length) return;
-      const ml = Math.max(0, Number(row?.ml || 0));
-      const units = Math.max(0, Number(row?.qty || 0));
-      const fixedQty = ml > 0 ? ml : (units > 0 ? units : 1);
-      fromRecipe.push({
-        id: String(row?.choiceId || "").trim() || `insumo_${index + 1}`,
-        name: String(row?.choiceName || "").trim() || "Sabor",
-        replacesProductId: String(row?.productId || "").trim(),
+      const productId = String(row?.productId || "").trim();
+      if (!productId) return;
+      const ingredient = lookup(productId);
+      const serving = componentServingAmount(row, ingredient);
+      const rawOptions = (Array.isArray(row?.options) ? row.options : [])
+        .filter((opt) => String(opt?.productId || "").trim());
+      if (rawOptions.length) {
+        const fixedQty = serving.ml > 0 ? serving.ml : (serving.qty > 0 ? serving.qty : 1);
+        groups.push({
+          id: String(row?.choiceId || "").trim() || `insumo_${index + 1}`,
+          name: String(row?.choiceName || "").trim() || "Sabor",
+          replacesProductId: productId,
+          replacesProductIds: [productId],
+          fixedQty,
+          options: rawOptions.map((opt) => ({
+            productId: String(opt.productId).trim(),
+            extraPrice: opt.extraPrice || 0,
+            qty: fixedQty
+          }))
+        });
+        return;
+      }
+      plain.push({ productId, ingredient, serving });
+    });
+    const buckets = new Map();
+    plain.forEach((entry) => {
+      const categoryKey = ingredientCategoryKey(entry.ingredient);
+      const mode = String(entry.ingredient?.stockMode || "unit");
+      const bucketKey = categoryKey ? `${categoryKey}|${mode}` : "";
+      if (!bucketKey) {
+        fixed.push(entry);
+        return;
+      }
+      if (!buckets.has(bucketKey)) buckets.set(bucketKey, []);
+      buckets.get(bucketKey).push(entry);
+    });
+    buckets.forEach((entries, key) => {
+      if (entries.length < 2) {
+        fixed.push(entries[0]);
+        return;
+      }
+      const fixedQty = entries[0].serving.ml > 0 ? entries[0].serving.ml : entries[0].serving.qty;
+      groups.push({
+        id: `cat_${key.replace(/[^a-zA-Z0-9]+/g, "_")}`,
+        name: String(entries[0].ingredient?.category || "Sabor").trim() || "Sabor",
+        replacesProductId: "",
+        replacesProductIds: entries.map((entry) => entry.productId),
         fixedQty,
-        options: rawOptions.map((opt) => ({
-          productId: String(opt.productId).trim(),
-          extraPrice: opt.extraPrice || 0,
-          qty: fixedQty
+        options: entries.map((entry) => ({
+          productId: entry.productId,
+          extraPrice: 0,
+          qty: entry.serving.ml > 0 ? entry.serving.ml : entry.serving.qty
         }))
       });
     });
-    if (fromRecipe.length) return normalizeComboGroups(fromRecipe);
-    return normalizeComboGroups(product?.comboGroups);
+    const normalized = normalizeComboGroups(groups);
+    if (!normalized.length) {
+      return {
+        fixed: fixed.map((entry) => ({ productId: entry.productId, ml: entry.serving.ml, qty: entry.serving.qty })),
+        groups: normalizeComboGroups(product?.comboGroups)
+      };
+    }
+    return {
+      fixed: fixed.map((entry) => ({ productId: entry.productId, ml: entry.serving.ml, qty: entry.serving.qty })),
+      groups: normalized
+    };
+  }
+
+  function comboChoicesFromProduct(product, findProduct) {
+    return comboStockParts(product, findProduct).groups;
   }
 
   function menuCategoryTabs(nodes, products) {
@@ -167,6 +249,8 @@
     getDeliveryFeeMode,
     calculateDeliveryFee,
     normalizeComboGroups,
+    componentServingAmount,
+    comboStockParts,
     comboChoicesFromProduct,
     menuCategoryTabs,
     comboUnitPrice,

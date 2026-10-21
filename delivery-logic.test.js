@@ -73,6 +73,36 @@ assert.strictEqual(fromInsumo[0].options[0].qty, 1);
 assert.strictEqual(fromInsumo[0].options[1].qty, 1);
 assert.strictEqual(fromInsumo[0].options[1].extraPrice, 2);
 
+const catalog = {
+  cereja: { id: "cereja", name: "Red Bull Cereja", stockMode: "unit", category: "Energéticos", categoryId: "energy" },
+  tropical: { id: "tropical", name: "Red Bull Tropical", stockMode: "unit", category: "Energéticos", categoryId: "energy" },
+  coco: { id: "coco", name: "Gelo de Coco", stockMode: "unit", category: "GELOS", categoryId: "gelo" },
+  morango: { id: "morango", name: "Gelo de Morango", stockMode: "unit", category: "GELOS", categoryId: "gelo" },
+  baly: { id: "baly", name: "Baly Tropical", stockMode: "unit", category: "Energéticos", categoryId: "energy" }
+};
+const listedFlavors = logic.comboStockParts({
+  doseRecipe: [
+    { productId: "cereja", qty: 10000 },
+    { productId: "tropical", qty: 10000 },
+    { productId: "coco", qty: 10000 },
+    { productId: "morango", qty: 10000 },
+    { productId: "baly", qty: 10000 }
+  ]
+}, (id) => catalog[id]);
+assert.strictEqual(listedFlavors.groups.length, 2);
+assert.strictEqual(listedFlavors.fixed.length, 0);
+const geloGroup = listedFlavors.groups.find((group) => group.name === "GELOS");
+const energyGroup = listedFlavors.groups.find((group) => group.name === "Energéticos");
+assert.strictEqual(geloGroup.options.length, 2);
+assert.strictEqual(energyGroup.options.length, 3);
+assert.strictEqual(geloGroup.options[0].qty, 1);
+const singleFlavor = logic.comboStockParts({
+  doseRecipe: [{ productId: "baly", qty: 10000 }]
+}, (id) => catalog[id]);
+assert.strictEqual(singleFlavor.groups.length, 0);
+assert.strictEqual(singleFlavor.fixed[0].qty, 1);
+assert.strictEqual(logic.componentServingAmount({ ml: 150, qty: 0 }, { stockMode: "ml" }).ml, 150);
+
 const legacy = logic.comboChoicesFromProduct({
   doseRecipe: [{ productId: "gelo", qty: 1 }],
   comboGroups: [{ name: "Marca", options: [{ productId: "jack", qty: 50 }] }]
