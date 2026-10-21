@@ -1,645 +1,1610 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>STOCK PDV — Sistema de Gestão</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css"/>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>STOCK PDV</title>
+    <meta name="description" content="Sistema de gestão, estoque e vendas" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="application-name" content="STOCK PDV" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="STOCK PDV" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="app-build" content="202610142304" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" href="/icons/app-icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="icon" href="/icons/app-icon-512.png" type="image/png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/icons/app-icon-512.png" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+    <meta name="msapplication-TileImage" content="/icons/app-icon-256.png" />
+    <meta name="msapplication-TileColor" content="#0b1224" />
+    <script src="pwa.js?v=202610142304"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=202610142230" />
+    <style>
+      #bootScreen {
+        position: fixed; inset: 0; z-index: 10000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+        background: radial-gradient(ellipse at 20% 50%, #001a2e 0%, #0b1224 60%);
+        color: #e2e8f0; font-family: Inter, system-ui, sans-serif;
+      }
+      #bootScreen.hidden { display: none !important; }
+      .boot-spinner {
+        width: 36px; height: 36px; border: 3px solid rgba(37,99,235,0.25);
+        border-top-color: #2563eb; border-radius: 50%; animation: bootSpin 0.8s linear infinite;
+      }
+      @keyframes bootSpin { to { transform: rotate(360deg); } }
+      #loginScreen:not(.hidden) { display: flex !important; }
+    </style>
+  </head>
+  <body>
 
-<!-- ════════════════════════════
-     LOGIN
-════════════════════════════ -->
-<div class="login-screen" id="loginScreen">
-  <div class="login-bg">
-    <div class="lb lb1"></div><div class="lb lb2"></div>
-    <div class="login-grid-bg"></div>
-  </div>
-  <div class="login-card">
-    <div class="login-logo">
-      <div class="login-mark">S</div>
-      <div>
-        <span class="login-brand">STOCK PDV</span>
-        <span class="login-brand-sub">Sistema de Gestão</span>
-      </div>
+    <div id="bootScreen" role="status" aria-live="polite">
+      <div class="boot-spinner" aria-hidden="true"></div>
+      <p id="bootScreenText">Carregando STOCK PDV…</p>
     </div>
-    <h2>Bem-vindo de volta</h2>
-    <p class="login-desc">Faça login para acessar o sistema</p>
-    <div class="fg"><label>Usuário</label><input type="text" id="lu" placeholder="Digite seu usuário" autocomplete="username"/></div>
-    <div class="fg"><label>Senha</label>
-      <div class="pw-wrap">
-        <input type="password" id="lp" placeholder="Digite sua senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
-        <button class="pw-eye" type="button" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
-      </div>
+
+    <!-- ══ TOPBAR MOBILE (visível só em tablet/celular) ══ -->
+    <div class="mobile-topbar" id="mobileTopbar">
+      <button class="btn-menu-toggle" id="btnMenuToggle" aria-label="Abrir menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <span class="mobile-topbar-brand">STOCK<span>PDV</span></span>
+      <div style="width:34px;"></div>
     </div>
-    <div class="login-err" id="loginErr">Usuário ou senha incorretos.</div>
-    <button class="btn-login" onclick="doLogin()">Entrar no sistema</button>
-  </div>
-</div>
 
-<!-- ════════════════════════════
-     APP
-════════════════════════════ -->
-<div class="app" id="app" style="display:none">
+    <!-- Overlay escuro ao abrir sidebar no mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sb-logo">
-      <div class="sb-mark" id="sbLogoWrap">S</div>
-      <div class="sb-brand">
-        <span id="sbBrandName">STOCK PDV</span>
-        <small>Gestão Completa</small>
-      </div>
-    </div>
-    <nav class="sb-nav">
-      <span class="nav-group">Principal</span>
-      <a class="ni active" data-p="pedidos" onclick="go('pedidos')"><i>📋</i><span>Pedidos</span><b class="nb" id="nbPedidos"></b></a>
-      <a class="ni" data-p="cardapio" onclick="go('cardapio')"><i>🍽️</i><span>Cardápio</span></a>
-      <a class="ni" data-p="estoque" onclick="go('estoque')"><i>📦</i><span>Estoque</span><b class="nb warn" id="nbEstoque"></b></a>
-      <a class="ni" data-p="clientes" onclick="go('clientes')"><i>👥</i><span>Clientes / Atacado</span></a>
-      <span class="nav-group">Financeiro</span>
-      <a class="ni" data-p="financeiro" onclick="go('financeiro')"><i>💵</i><span>Financeiro</span></a>
-      <a class="ni" data-p="relatorios" onclick="go('relatorios')"><i>📊</i><span>Relatórios</span></a>
-      <span class="nav-group admin-only">Admin</span>
-      <a class="ni admin-only" data-p="usuarios" onclick="go('usuarios')"><i>🔐</i><span>Usuários</span></a>
-      <a class="ni" data-p="config" onclick="go('config')"><i>⚙️</i><span>Configurações</span></a>
-    </nav>
-    <div class="sb-foot">
-      <div class="sb-user">
-        <div class="sb-avatar" id="sbAvatar">A</div>
-        <div><span id="sbName">Admin</span><small id="sbRole">Administrador</small></div>
-      </div>
-      <button class="btn-logout" onclick="doLogout()" title="Sair">⏻</button>
-    </div>
-  </aside>
-
-  <!-- MAIN -->
-  <div class="main" id="mainArea">
-
-    <!-- TOPBAR -->
-    <header class="topbar">
-      <button class="sb-toggle" id="sbToggle" onclick="toggleSB()">☰</button>
-      <div class="tb-title" id="tbTitle">Pedidos</div>
-      <div class="tb-right">
-        <div class="tb-search"><span>🔍</span><input type="text" placeholder="Pesquisar..." id="gSearch" oninput="gSearchFn()"/></div>
-        <button class="tb-notif" onclick="toggleNotif()" id="notifBtn">🔔<span class="notif-dot" id="ndot" style="display:none"></span></button>
-        <div class="notif-drop" id="notifDrop" style="display:none">
-          <div class="nd-hd">Notificações</div>
-          <div id="ndList"><div class="nd-empty">Nenhuma notificação</div></div>
+    <!-- Aviso de nova versão -->
+    <div id="appUpdateBanner" class="app-update-banner hidden" role="alert">
+      <div class="app-update-banner-content">
+        <span class="app-update-banner-icon" aria-hidden="true">🔄</span>
+        <div>
+          <strong class="app-update-banner-title">Nova versão disponível</strong>
+          <p id="appUpdateBannerText" class="app-update-banner-text">Atualize o sistema para usar os recursos mais recentes.</p>
         </div>
-        <div class="tb-clock" id="tbClock"></div>
       </div>
-    </header>
+      <div class="app-update-banner-actions">
+        <button type="button" class="btn primary btn-app-update" id="btnAppUpdateNow">Atualizar agora</button>
+        <button type="button" class="app-update-banner-close" id="btnAppUpdateLater" aria-label="Lembrar depois">Depois</button>
+      </div>
+    </div>
 
-    <div class="pages">
+    <!-- ══════════════════════════════════════════ LOGIN SCREEN ══ -->
+    <div id="loginScreen" class="login-screen">
+      <div class="login-bg">
+        <div class="login-grid-lines"></div>
+        <div class="login-glow"></div>
+      </div>
+      <div class="login-card">
+        <div class="login-brand">
+          <div class="login-logo-wrap">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <rect x="2" y="2" width="36" height="36" rx="8" stroke="#00e5ff" stroke-width="1.5"/>
+              <path d="M10 20h6l4-8 4 16 4-8h2" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h1 class="login-title">STOCK<span>PDV</span></h1>
+          <p class="login-sub">Sistema de Gestão e Vendas</p>
+        </div>
 
-      <!-- ══════════ PEDIDOS ══════════ -->
-      <div class="page active" id="page-pedidos">
-        <div class="ph">
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Entrar</button>
+          <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Cadastrar</button>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <div class="field-group">
+            <label>Email</label>
+            <input type="email" id="loginEmail" placeholder="seu@email.com" required />
+          </div>
+          <div class="field-group">
+            <label>Senha</label>
+            <input type="password" id="loginPassword" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn-neon">ENTRAR</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden">
+          <div class="field-group">
+            <label>Nome</label>
+            <input type="text" id="registerName" placeholder="Seu nome" required />
+          </div>
+          <div class="field-group">
+            <label>Email</label>
+            <input type="email" id="registerEmail" placeholder="seu@email.com" required />
+          </div>
+          <div class="field-group">
+            <label>Senha</label>
+            <input type="password" id="registerPassword" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn-neon">CRIAR CONTA</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ APP SHELL ══ -->
+    <div id="appShell" class="app-shell hidden">
+
+      <div id="licenseExpiryBanner" class="license-expiry-banner hidden" role="alert">
+        <div class="license-expiry-banner-content">
+          <span class="license-expiry-banner-icon" aria-hidden="true">⚠️</span>
           <div>
-            <h1>Pedidos</h1>
-            <span class="ph-sub">Gerencie seus pedidos</span>
-          </div>
-          <div class="ph-btns">
-            <button class="btn-outline-red" onclick="toggleLoja()" id="btnLoja">⏻ FECHAR LOJA</button>
-            <button class="btn-primary" onclick="openNovoPedido()">⊕ NOVO PEDIDO</button>
+            <strong class="license-expiry-banner-title">Mensalidade perto do vencimento</strong>
+            <p id="licenseExpiryMessage" class="license-expiry-banner-text"></p>
           </div>
         </div>
-
-        <!-- Status strip -->
-        <div class="status-strip">
-          <div class="ss-card" id="ss0"><span>AGUARDANDO APROVAÇÃO</span><strong id="cnt0">0</strong><em>⏳</em></div>
-          <div class="ss-card" id="ss1"><span>ATUALIZADO</span><strong id="cnt1">0</strong><em>😐</em></div>
-          <div class="ss-card active-ss" id="ss2"><span>EM PREPARAÇÃO</span><strong id="cnt2">0</strong><em>🔄</em></div>
-          <div class="ss-card" id="ss3"><span>SAIU PARA ENTREGA</span><strong id="cnt3">0</strong><em>🚚</em></div>
-          <div class="ss-card" id="ss4"><span>PRONTO PARA RETIRADA</span><strong id="cnt4">0</strong><em>✅</em></div>
-          <div class="ss-card" id="ss5"><span>AGENDADO</span><strong id="cnt5">0</strong><em>📅</em></div>
-        </div>
-
-        <!-- Toolbar -->
-        <div class="ped-toolbar">
-          <button class="btn-dark" onclick="renderPedidos()">VER TODOS OS PEDIDOS</button>
-          <div class="tb-search"><span>🔍</span><input type="text" id="searchPed" placeholder="Pesquisar pedidos..." oninput="renderPedidos()"/></div>
-          <div style="flex:1"></div>
-        </div>
-        <div class="ped-tabs-row">
-          <div class="ped-tabs">
-            <button class="ptab active" data-tipo="todos" onclick="setTipoTab(this,'todos')">Todos os Pedidos <span id="ptTodos" class="ptab-n">0</span></button>
-            <button class="ptab" data-tipo="retirada" onclick="setTipoTab(this,'retirada')">Retirada <span id="ptRetirada" class="ptab-n">0</span></button>
-            <button class="ptab" data-tipo="entrega" onclick="setTipoTab(this,'entrega')">Entrega <span id="ptEntrega" class="ptab-n">0</span></button>
-          </div>
-        </div>
-        <div class="ocultar-row">
-          <label class="tgl-label"><input type="checkbox" id="ocultarConc" onchange="renderPedidos()"/><span class="tgl-sl"></span>Ocultar pedidos concluídos</label>
-          <div class="tipo-counts">
-            <span class="tc" id="tcRetirada">Retirada <b>0</b></span>
-            <span class="tc" id="tcEntrega">Entrega <b>0</b></span>
-          </div>
-        </div>
-
-        <!-- Pedidos layout: lista + detalhe -->
-        <div class="ped-layout">
-          <div class="ped-list" id="pedList"></div>
-          <div class="ped-detail" id="pedDetail">
-            <div class="pd-empty">
-              <span>📋</span>
-              <p>Selecione um pedido para ver os detalhes</p>
-            </div>
-          </div>
-        </div>
+        <button type="button" class="license-expiry-banner-close" id="btnDismissLicenseBanner" aria-label="Fechar aviso desta sessão">×</button>
       </div>
 
-      <!-- ══════════ CARDÁPIO ══════════ -->
-      <div class="page" id="page-cardapio">
-        <div class="ph">
-          <div><h1>Cardápio</h1><span class="ph-sub">Editor de Produtos</span></div>
-          <div class="ph-btns">
-            <button class="btn-outline" onclick="openModal('modalCategoria')">+ Nova Categoria</button>
-            <button class="btn-primary" onclick="openModal('modalProduto')">+ Novo Item</button>
+      <div class="app-shell-body">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <img id="sidebarLogo" src="" alt="" style="display:none; max-height:56px; border-radius:6px;" />
+          <div class="brand-text">
+            <span id="sidebarBrandName">STOCK PDV</span>
+            <span class="brand-sub">Sistema ERP</span>
           </div>
         </div>
-        <div class="card-toolbar">
-          <div class="tb-search"><span>🔍</span><input type="text" id="searchCard" placeholder="Pesquise pelo produto..." oninput="renderCardapio()"/></div>
-          <div style="flex:1"></div>
-          <button class="btn-sm-outline" id="btnPromocoes">🏷️ Itens em Promoção</button>
-        </div>
-        <div id="cardapioList"></div>
-      </div>
 
-      <!-- ══════════ ESTOQUE ══════════ -->
-      <div class="page" id="page-estoque">
-        <div class="ph">
-          <div><h1>Estoque</h1><span class="ph-sub">Controle de estoque e produtos</span></div>
-          <div class="ph-btns">
-            <button class="btn-outline" onclick="openModal('modalEntrada')">+ Entrada</button>
-            <button class="btn-primary" onclick="openModal('modalProduto')">+ Novo Produto</button>
-          </div>
-        </div>
-        <div class="kpi-row">
-          <div class="kpi-box"><span class="kpi-ico">📦</span><div><strong id="kTotalItens">0</strong><small>Total de Itens</small></div></div>
-          <div class="kpi-box warn"><span class="kpi-ico">⚠️</span><div><strong id="kBaixo">0</strong><small>Estoque Baixo</small></div></div>
-          <div class="kpi-box danger"><span class="kpi-ico">🚫</span><div><strong id="kZero">0</strong><small>Sem Estoque</small></div></div>
-          <div class="kpi-box green"><span class="kpi-ico">💰</span><div><strong id="kValor">R$0</strong><small>Valor em Estoque</small></div></div>
-        </div>
-        <div class="card-toolbar">
-          <input type="text" class="input-field" id="searchEst" placeholder="Pesquisar produto..." oninput="renderEstoque()"/>
-          <select class="input-field" id="filterCatEst" onchange="renderEstoque()"><option value="">Todas as categorias</option></select>
-          <select class="input-field" id="filterStatusEst" onchange="renderEstoque()">
-            <option value="">Todos os status</option>
-            <option value="ok">Normal</option>
-            <option value="baixo">Baixo</option>
-            <option value="zero">Sem estoque</option>
-          </select>
-        </div>
-        <div class="table-wrap">
-          <table class="dtable" id="tblEst">
-            <thead><tr><th>Produto</th><th>Código</th><th>Categoria</th><th>Qtd</th><th>Mín</th><th>Preço Atacado</th><th>Custo</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody id="tbEst"></tbody>
-          </table>
-        </div>
-      </div>
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-tab="pdvTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span>Caixa / PDV</span>
+          </button>
+          <button class="nav-item" data-tab="produtosTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+            <span>Produtos</span>
+          </button>
+          <button class="nav-item" id="navEstoqueBtn" data-tab="estoqueTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <span>Estoque</span>
+            <span class="nav-alert-dot" id="navEstoqueAlert" hidden aria-hidden="true"></span>
+          </button>
+          <button class="nav-item" id="navDeliveryBtn" data-tab="deliveryTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 19h12"/></svg>
+            <span>Delivery</span>
+            <span class="nav-alert-dot" id="navDeliveryAlert" hidden aria-hidden="true"></span>
+          </button>
+          <button class="nav-item" data-tab="vendasTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span>Vendas</span>
+          </button>
+          <button class="nav-item" data-tab="financeiroTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 12h.01M18 12h.01"/></svg>
+            <span>Caixa Geral</span>
+          </button>
+          <button class="nav-item" data-tab="relatoriosTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span>Relatórios</span>
+          </button>
+          <button class="nav-item" data-tab="aiTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1z"/><path d="M19 13l.75 2.25L22 16l-2.25.75L19 19l-.75-2.25L16 16l2.25-.75L19 13z"/></svg>
+            <span>Inteligência Artificial</span>
+          </button>
+          <button class="nav-item" data-tab="empresaTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/></svg>
+            <span>Empresa</span>
+          </button>
+          <button class="nav-item hidden" id="adminNavBtn" data-tab="adminTab">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Admin</span>
+          </button>
+        </nav>
 
-      <!-- ══════════ CLIENTES ══════════ -->
-      <div class="page" id="page-clientes">
-        <div class="ph">
-          <div><h1>Clientes / Atacado</h1><span class="ph-sub">Cadastro de clientes e gestão de crédito</span></div>
-          <button class="btn-primary" onclick="openModal('modalCliente')">+ Novo Cliente</button>
+        <div class="pwa-install-wrap hidden" id="pwaInstallWrap">
+          <button type="button" id="btnInstallPwa" class="btn-install-pwa" title="Instalar STOCK PDV na área de trabalho">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Instalar aplicativo</span>
+          </button>
         </div>
-        <div class="kpi-row">
-          <div class="kpi-box"><span class="kpi-ico">👥</span><div><strong id="kTotalCli">0</strong><small>Total</small></div></div>
-          <div class="kpi-box blue"><span class="kpi-ico">🏭</span><div><strong id="kAtacado">0</strong><small>Atacado</small></div></div>
-          <div class="kpi-box"><span class="kpi-ico">🛍️</span><div><strong id="kVarejo">0</strong><small>Varejo</small></div></div>
-          <div class="kpi-box danger"><span class="kpi-ico">💳</span><div><strong id="kDebito">R$0</strong><small>Total Débito</small></div></div>
-        </div>
-        <div class="card-toolbar">
-          <input type="text" class="input-field" id="searchCli" placeholder="Pesquisar cliente..." oninput="renderClientes()"/>
-          <select class="input-field" id="filterTipoCli" onchange="renderClientes()">
-            <option value="">Todos os tipos</option><option value="atacado">Atacado</option><option value="varejo">Varejo</option>
-          </select>
-        </div>
-        <div class="table-wrap">
-          <table class="dtable">
-            <thead><tr><th>Cliente</th><th>Tipo</th><th>Telefone</th><th>Documento</th><th>Limite</th><th>Débito</th><th>Total Pedidos</th><th>Ações</th></tr></thead>
-            <tbody id="tbCli"></tbody>
-          </table>
-        </div>
-      </div>
 
-      <!-- ══════════ FINANCEIRO ══════════ -->
-      <div class="page" id="page-financeiro">
-        <div class="ph">
-          <div><h1>Financeiro / Caixa</h1><span class="ph-sub">Controle de caixa e movimentações</span></div>
-          <button class="btn-primary" id="btnCaixa" onclick="openModal('modalAbrirCaixa')">Abrir Caixa</button>
-        </div>
-        <div class="fin-layout">
-          <div class="fin-left">
-            <div class="caixa-card">
-              <div class="cc-row"><span>Status</span><span class="badge-status" id="cxStatus">Fechado</span></div>
-              <div class="cc-row"><span>Abertura</span><span id="cxAbertura">—</span></div>
-              <div class="cc-row"><span>Saldo Inicial</span><span id="cxSaldoIni">R$ 0,00</span></div>
-              <div class="cc-row"><span>Entradas</span><span class="tgreen" id="cxEntradas">R$ 0,00</span></div>
-              <div class="cc-row"><span>Saídas</span><span class="tred" id="cxSaidas">R$ 0,00</span></div>
-              <div class="cc-row cc-total"><span>Saldo Atual</span><span class="tgreen" id="cxSaldo">R$ 0,00</span></div>
-            </div>
-            <div class="fin-actions">
-              <button class="btn-outline" onclick="openModal('modalSangria')">💸 Sangria</button>
-              <button class="btn-outline" onclick="openModal('modalSuprimento')">➕ Suprimento</button>
-              <button class="btn-danger" onclick="fecharCaixa()">🔒 Fechar Caixa</button>
-            </div>
-            <div class="fin-resumo-card">
-              <div class="frc-title">Resumo por Pagamento</div>
-              <div id="finResumo"></div>
+        <div class="sidebar-footer">
+          <div class="user-info">
+            <div class="user-avatar" id="userAvatar">U</div>
+            <div class="user-details">
+              <span id="loggedUserLabel" class="user-email">usuario@email.com</span>
+              <span class="user-role" id="userRoleLabel">Operador</span>
             </div>
           </div>
-          <div class="fin-right">
-            <div class="section-sm">Movimentações</div>
-            <div class="table-wrap">
-              <table class="dtable">
-                <thead><tr><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr></thead>
-                <tbody id="tbMovCaixa"></tbody>
-              </table>
-            </div>
-          </div>
+          <button id="btnLogout" class="btn-logout" title="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
         </div>
-      </div>
+      </aside>
 
-      <!-- ══════════ RELATÓRIOS ══════════ -->
-      <div class="page" id="page-relatorios">
-        <div class="ph"><h1>Relatórios</h1></div>
-        <div class="rel-kpis">
-          <div class="rk green"><span>TOTAL VENDIDO HOJE</span><strong id="rkHoje">R$ 0,00</strong><em>📈</em></div>
-          <div class="rk blue"><span>TOTAL VENDIDO NO MÊS</span><strong id="rkMes">R$ 0,00</strong><em>📅</em></div>
-          <div class="rk orange"><span>PRODUTO MAIS VENDIDO</span><strong id="rkProduto">—</strong><em>🏆</em></div>
-          <div class="rk purple"><span>LUCRO ESTIMADO</span><strong id="rkLucro">R$ 0,00</strong><em>💰</em></div>
-        </div>
-        <div class="rel-grid">
-          <div class="rel-card">
-            <div class="rc-hd">
-              <span>Resumo Mensal por Dia</span>
-              <div style="display:flex;gap:8px;align-items:center">
-                <select class="input-field-sm" id="selMes" onchange="renderChart()">
-                  <option>Abril 2026</option><option>Março 2026</option><option>Fevereiro 2026</option>
+      <!-- MAIN CONTENT -->
+      <div class="main-content">
+        <!-- ══ PDV TAB (fullscreen) ══ -->
+        <section id="pdvTab" class="tab-content pdv-fullscreen active">
+          <div class="pdv-layout">
+
+            <!-- LEFT: Scan area -->
+            <div class="pdv-left">
+              <div class="pdv-header">
+                <h2 class="pdv-title">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  CAIXA
+                </h2>
+                <div class="pdv-header-cash">
+                  <div class="pdv-register-meta">
+                    <span id="pdvRegisterBadge" class="pdv-register-badge hidden"></span>
+                    <div class="pdv-register-actions">
+                      <button type="button" class="btn btn-cash-sm btn-ghost-sm" id="btnSwitchOperator" title="Trocar operador">Operador</button>
+                      <button type="button" class="btn btn-cash-sm btn-ghost-sm" id="btnSwitchRegister" title="Trocar caixa">Caixa</button>
+                    </div>
+                  </div>
+                  <div class="pdv-status" id="pdvCashStatusWrap">
+                    <span class="status-dot" id="pdvCashStatusDot"></span>
+                    <span id="pdvCashStatusText">Caixa livre</span>
+                  </div>
+                  <div class="pdv-cash-btns">
+                    <button type="button" class="btn btn-cash-sm" id="btnOpenCash">Abrir caixa</button>
+                    <button type="button" class="btn btn-cash-sm" id="btnCashSangria" disabled>Sangria</button>
+                    <button type="button" class="btn btn-cash-sm btn-cash-close" id="btnCloseCash" disabled>Fechar caixa</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Área de scan centralizada -->
+              <div class="scan-area">
+                <div class="scan-idle" id="scanIdle">
+                  <div class="scan-icon-wrap">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                      <path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14M5 5v14M9 5v14M13 5v14M17 5v14M21 5v14"/>
+                    </svg>
+                    <div class="scan-laser"></div>
+                  </div>
+                  <p class="scan-label">Aguardando leitura</p>
+                  <small class="scan-hint">Bipe o código de barras do produto</small>
+                </div>
+
+                <!-- Último produto bipado -->
+                <div class="scan-last" id="scanLast" style="display:none;">
+                  <div class="scan-last-badge">✓ ADICIONADO</div>
+                  <div class="scan-last-name" id="scanLastName"></div>
+                  <div class="scan-last-meta" id="scanLastMeta"></div>
+                  <div class="scan-qty-wrap" id="scanLastQtyWrap"></div>
+                </div>
+
+                <div class="scan-selected-panel" id="scanSelectedPanel">
+                  <div class="scan-selected-title">Itens no pedido</div>
+                  <ul class="scan-selected-list" id="scanSelectedList"></ul>
+                </div>
+              </div>
+
+              <div class="pdv-search-wrap">
+                <div class="pdv-search-box">
+                  <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  <input type="text" id="pdvSearch" placeholder="Ou digite o código / nome para buscar..." autocomplete="off" />
+                  <span class="barcode-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14M5 5v14M9 5v14M13 5v14M17 5v14M21 5v14"/></svg>
+                  </span>
+                </div>
+                <ul id="pdvSearchResults" class="pdv-search-dropdown"></ul>
+              </div>
+            </div>
+
+            <!-- RIGHT: Carrinho + Pagamento -->
+            <div class="pdv-right">
+              <div class="cart-header">
+                <h3 class="cart-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                  CARRINHO
+                </h3>
+                <span id="cartCount" class="cart-count">0 itens</span>
+              </div>
+
+              <!-- ── Barra de preço (somente varejo) ── -->
+              <div class="cart-price-toggle" id="cartPriceToggle">
+                <span class="toggle-label">Preço aplicado:</span>
+                <button id="btnSetAllRetail" class="btn-price-type active">VAREJO</button>
+              </div>
+
+              <ul id="cartList" class="cart-list"></ul>
+
+              <div class="cart-empty" id="cartEmpty">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+                <p>Carrinho vazio</p>
+                <small>Busque ou bipe um produto</small>
+              </div>
+
+              <div class="cart-total-wrap">
+                <div class="subtotal-line">
+                  <span>Subtotal</span>
+                  <span id="cartSubtotal">R$ 0,00</span>
+                </div>
+                <div class="discount-line">
+                  <span>Desconto</span>
+                  <div class="discount-inputs">
+                    <input type="number" id="discountValue" min="0" placeholder="0" step="0.01" />
+                    <div class="discount-type-toggle">
+                      <button id="discountTypeR" class="disc-btn active" title="Reais (R$)">R$</button>
+                      <button id="discountTypeP" class="disc-btn" title="Porcentagem (%)">%</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="total-line">
+                  <span>TOTAL</span>
+                  <strong id="cartTotal">R$ 0,00</strong>
+                </div>
+              </div>
+
+              <!-- Cliente -->
+              <div class="payment-section">
+                <div class="section-label">CLIENTE <span class="optional">(opcional)</span></div>
+                <div class="field-row">
+                  <input type="text" id="buyerName" placeholder="Nome do cliente" />
+                  <input type="text" id="buyerPhone" placeholder="Telefone" />
+                </div>
+                <input type="text" id="buyerDocument" placeholder="CPF / CNPJ" />
+              </div>
+
+              <!-- Pagamento -->
+              <div class="payment-section">
+                <div class="section-label">PAGAMENTO</div>
+                <label class="split-payment-toggle">
+                  <input type="checkbox" id="splitPaymentToggle" />
+                  <span>Dividir em mais de uma forma</span>
+                </label>
+                <div id="singlePaymentWrap">
+                  <div class="payment-methods">
+                    <label class="pay-method">
+                      <input type="radio" name="payMethod" value="Dinheiro" id="payDinheiro" checked />
+                      <span>💵 Dinheiro</span>
+                    </label>
+                    <label class="pay-method">
+                      <input type="radio" name="payMethod" value="Pix" id="payPix" />
+                      <span>⚡ Pix</span>
+                    </label>
+                    <label class="pay-method">
+                      <input type="radio" name="payMethod" value="Cartão Crédito" id="payCredito" />
+                      <span>💳 Crédito</span>
+                    </label>
+                    <label class="pay-method">
+                      <input type="radio" name="payMethod" value="Cartão Débito" id="payDebito" />
+                      <span>💳 Débito</span>
+                    </label>
+                    <label class="pay-method">
+                      <input type="radio" name="payMethod" value="A Prazo" id="payPrazo" />
+                      <span>🧾 A prazo</span>
+                    </label>
+                  </div>
+                </div>
+                <div id="splitPaymentsWrap" class="split-payments-wrap hidden">
+                  <div id="splitPaymentsList"></div>
+                  <button type="button" id="btnAddSplitPayment" class="btn btn-cash-sm split-add-btn">+ Adicionar forma</button>
+                  <p id="splitPaymentBalance" class="split-payment-balance">Restante: R$ 0,00</p>
+                </div>
+                <select id="paymentMethod" style="display:none;">
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="Pix">Pix</option>
+                  <option value="Cartão Crédito">Cartão Crédito</option>
+                  <option value="Cartão Débito">Cartão Débito</option>
+                  <option value="A Prazo">A Prazo</option>
                 </select>
-                <button class="btn-sm-green" onclick="imprimirRel()">🖨️ Imprimir</button>
+                <div id="cashPaymentFields" class="field-group" style="margin-top:10px;">
+                  <label>Valor pago (dinheiro)</label>
+                  <input type="number" id="cashAmountPaid" min="0" step="0.01" placeholder="0,00" />
+                  <small id="cashChangeInfo" style="color:var(--muted);display:block;margin-top:4px;">Troco: R$ 0,00</small>
+                </div>
+              </div>
+
+              <div class="pdv-actions">
+                <button id="btnFinalizeSale" class="btn-finalize">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  FINALIZAR VENDA
+                </button>
+                <button id="btnFinalizeOnCredit" class="btn">
+                  🧾 FINALIZAR A PRAZO
+                </button>
+                <button type="button" id="btnPrintReceipt" class="btn-print">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Imprimir
+                </button>
+              </div>
+              <small id="printerInfo" class="printer-info"></small>
+              <button type="button" id="btnTestActivePrinter" class="btn btn-cash-sm" style="margin-top:6px;">Testar impressora deste caixa</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ PRODUTOS TAB ══ -->
+        <section id="produtosTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Produtos</h2>
+          </div>
+          <div class="page-body">
+            <div class="form-card form-card--collapsible collapsed" id="productFormCard">
+              <div class="form-card-header">
+                <button type="button" class="form-card-toggle" id="productFormToggle" aria-expanded="false">
+                  <span class="form-card-toggle-title">
+                    <span class="form-card-chevron" aria-hidden="true">▶</span>
+                    <span>Cadastrar / Editar Produto</span>
+                  </span>
+                  <span class="form-card-toggle-meta" id="productFormMeta">Clique para abrir</span>
+                </button>
+                <button type="button" class="btn" id="btnNewProduct">+ Novo</button>
+              </div>
+              <div class="form-card-body" id="productFormBody">
+              <form id="productForm" class="grid-2">
+                <input type="hidden" id="productId" />
+                <div class="field-group">
+                  <label>Nome do produto</label>
+                  <input type="text" id="productName" required />
+                </div>
+                <div class="field-group">
+                  <label for="productCode">Código de barras <span class="optional">(opcional)</span></label>
+                  <input type="text" id="productCode" name="productCode" autocomplete="off" placeholder="Digite ou bipe o código de barras" />
+                  <small style="color:var(--muted);display:block;margin-top:4px;">Com este campo selecionado, bipe o leitor para preencher automaticamente.</small>
+                </div>
+                <div class="field-group">
+                  <label>Preço Varejo (R$)</label>
+                  <input type="number" id="productPrice" step="0.01" min="0" required />
+                </div>
+                <div class="field-group">
+                  <label>Custo (R$) <span class="optional">(opcional)</span></label>
+                  <input type="number" id="productCost" step="0.01" min="0" placeholder="0,00" />
+                </div>
+                <div class="field-group full" id="productStockModeWrap">
+                  <label>Tipo de controle de estoque</label>
+                  <select id="productStockMode">
+                    <option value="unit">Unidade (lata, garrafa fechada, etc.)</option>
+                    <option value="ml">Garrafa aberta — controle em ml (whisky, gin, energético…)</option>
+                    <option value="dose">Dose / combo — baixa ml dos insumos ao vender</option>
+                  </select>
+                </div>
+                <div id="productUnitStockFields" class="field-group">
+                  <label id="productQtyLabel">Quantidade em estoque (unidades)</label>
+                  <input type="number" id="productQty" min="0" step="1" value="0" />
+                  <div class="field-group" style="margin-top:12px;">
+                    <label>Volume da garrafa (ml) <span class="optional">(opcional — destilados fechados)</span></label>
+                    <input type="number" id="productUnitBottleVolumeMl" min="0" step="1" value="0" placeholder="Ex: 1000" />
+                    <small style="color:var(--muted);display:block;margin-top:4px;">Usado ao abrir garrafa fechada → insumo na reposição de estoque.</small>
+                  </div>
+                </div>
+                <div id="productMlStockFields" class="hidden">
+                  <small style="color:var(--warning, #f0a500);display:block;margin-bottom:12px;line-height:1.5;">
+                    Insumo para controle de garrafa aberta — <strong>não aparece na busca do caixa</strong>.
+                    Para vender, cadastre outro produto como «Dose/combo» usando este insumo.
+                  </small>
+                  <div class="field-group">
+                    <label>Estoque atual (ml)</label>
+                    <input type="number" id="productQtyMl" min="0" step="1" value="0" placeholder="Ex: 3000" />
+                  </div>
+                  <div class="field-group">
+                    <label>Volume por garrafa (ml)</label>
+                    <input type="number" id="productBottleVolumeMl" min="0" step="1" value="1000" placeholder="Ex: 1000" />
+                    <small style="color:var(--muted);display:block;margin-top:4px;">Use ao repor estoque: 2 garrafas de 1000 ml = +2000 ml.</small>
+                  </div>
+                </div>
+                <div id="productDoseFields" class="hidden full">
+                  <label>Composição da dose</label>
+                  <small style="color:var(--muted);display:block;margin:4px 0 10px;">Ex.: Whisky 50 ml + Red Bull 1 un. + Gelo 1 un. Garrafa aberta = ml; lata, gelo, etc. = unidade.</small>
+                  <div id="doseRecipeList"></div>
+                  <button type="button" id="btnAddDoseRecipeRow" class="btn btn-cash-sm" style="margin-top:8px;">+ Adicionar insumo</button>
+                </div>
+                <div class="field-group" id="productMinStockWrap">
+                  <label id="productMinStockLabel">Estoque mínimo</label>
+                  <input type="number" id="productMinStock" min="0" value="0" required />
+                </div>
+                <div class="field-group" id="productUnitsPerPackWrap">
+                  <label>Unidades por fardo</label>
+                  <input type="number" id="productUnitsPerPack" min="0" step="1" value="0" placeholder="Ex: 12" />
+                  <small style="color:var(--muted);display:block;margin-top:4px;">0 = não usa reposição por fardo. Ex.: 1 fardo de cerveja = 12 latas.</small>
+                </div>
+                <div class="field-group full product-category-dual" id="productCategoryTreeWrap">
+                  <div class="product-category-dual-grid">
+                    <div class="field-group">
+                      <label for="productCategoryParentSelect">Categoria principal</label>
+                      <select id="productCategoryParentSelect" required>
+                        <option value="">Selecione...</option>
+                      </select>
+                    </div>
+                    <div class="field-group">
+                      <label for="productCategorySubSelect">Subcategoria</label>
+                      <select id="productCategorySubSelect" disabled>
+                        <option value="">— Só categoria principal —</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p id="productCategorySelectedPath" class="product-category-selected-path">Nenhuma categoria selecionada</p>
+                  <input type="hidden" id="productCategorySelect" />
+                  <div class="product-category-picker-actions">
+                    <button type="button" id="btnCategoryAddSub" class="btn btn-cash-sm">+ Subcategoria</button>
+                    <button type="button" id="btnAddRootCategoryFromProduct" class="btn btn-cash-sm">+ Categoria principal</button>
+                    <button type="button" id="btnCategoryRenameSelected" class="btn btn-cash-sm">Editar categoria</button>
+                    <button type="button" id="btnCategoryDeleteSelected" class="btn btn-cash-sm danger">Excluir categoria</button>
+                  </div>
+                  <small style="color:var(--muted);display:block;margin-top:6px;">Ex.: Principal «Destilados» + Subcategoria «Whisky» → salva como Destilados › Whisky. Para editar ou excluir, selecione a categoria e use os botões.</small>
+                </div>
+                <div class="field-group full">
+                  <div class="field-label">Foto do produto</div>
+                  <div class="product-photo-zone" id="productPhotoZone" tabindex="0" role="button" aria-label="Enviar foto do produto">
+                    <input type="file" id="productPhotoFile" class="product-photo-file-input" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif" aria-label="Selecionar arquivo de imagem" />
+                    <div class="product-photo-zone-inner" id="productPhotoZoneInner">
+                      <span class="product-photo-zone-icon" aria-hidden="true">+</span>
+                      <p>Cole a imagem aqui (Ctrl+V), arraste ou clique</p>
+                      <small>O link é gerado automaticamente — fotos grandes são comprimidas</small>
+                    </div>
+                    <div class="product-photo-preview hidden" id="productPhotoPreview">
+                      <img id="productPhotoPreviewImg" alt="Pré-visualização" />
+                    </div>
+                  </div>
+                  <input type="text" id="productPhoto" placeholder="Link da foto (preenchido automaticamente)" readonly tabindex="-1" />
+                  <p class="product-photo-status" id="productPhotoStatus" aria-live="polite"></p>
+                </div>
+                <div class="field-group full">
+                  <label>Descrição (opcional)</label>
+                  <textarea id="productDescription" rows="3" placeholder="Descrição comercial do produto — pode ser gerada pela IA"></textarea>
+                </div>
+                <div class="field-group">
+                  <label style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="productHasExpiry" />
+                    Produto com validade
+                  </label>
+                </div>
+                <div class="field-group" id="productExpiryDateWrap" style="display:none;">
+                  <label>Data de validade</label>
+                  <input type="date" id="productExpiryDate" />
+                </div>
+                <div class="full form-actions">
+                  <button type="submit" class="btn primary">Salvar produto</button>
+                  <button type="button" id="btnClearProduct" class="btn">Limpar</button>
+                  <button type="button" id="btnDeleteProduct" class="btn danger form-action-delete hidden">Excluir produto</button>
+                </div>
+              </form>
               </div>
             </div>
-            <div class="chart-wrap" id="chartWrap"></div>
-            <div class="chart-legend"><span class="cl-green">● Lucro (R$)</span><span class="cl-blue">● Vendas (R$)</span></div>
-            <div class="table-wrap mt8">
-              <table class="dtable dtable-sm">
-                <thead><tr><th>Data</th><th>Vendas</th><th>Total</th><th>Desconto</th><th>Lucro</th></tr></thead>
-                <tbody id="tbRelMensal"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="rel-card">
-            <div class="rc-hd"><span>Top Produtos</span></div>
-            <div id="topProd"></div>
-          </div>
-        </div>
-      </div>
 
-      <!-- ══════════ USUÁRIOS ══════════ -->
-      <div class="page" id="page-usuarios">
-        <div class="ph">
-          <div><h1>Usuários do Sistema</h1><span class="ph-sub">Gerenciamento de acessos</span></div>
-          <button class="btn-primary" onclick="openModal('modalUser')">+ Novo Usuário</button>
-        </div>
-        <div class="table-wrap">
-          <table class="dtable">
-            <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Último Acesso</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody id="tbUsers"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ══════════ CONFIG ══════════ -->
-      <div class="page" id="page-config">
-        <div class="ph"><h1>Configurações</h1><span class="ph-sub">Configurações da empresa e do sistema</span></div>
-        <div class="cfg-grid">
-          <div class="cfg-card">
-            <h3>Dados da Empresa</h3>
-            <div class="fg"><label>Nome da Empresa</label><input type="text" class="input-field" id="cfNome" placeholder="Nome do negócio"/></div>
-            <div class="fg"><label>CNPJ / CPF</label><input type="text" class="input-field" id="cfCnpj" placeholder="00.000.000/0000-00"/></div>
-            <div class="fg"><label>Telefone</label><input type="text" class="input-field" id="cfTel" placeholder="(11) 99999-9999"/></div>
-            <div class="fg"><label>Endereço</label><input type="text" class="input-field" id="cfEnd" placeholder="Rua, número, bairro"/></div>
-            <div class="fg"><label>Nome do Cliente no Comprovante</label><input type="text" class="input-field" id="cfClienteNome" placeholder="Ex: Adega Silva"/></div>
-            <div class="fg"><label>Logo do Cliente (URL)</label><input type="text" class="input-field" id="cfClienteLogo" placeholder="https://..."/></div>
-            <button class="btn-primary" onclick="salvarConfig()">Salvar Dados</button>
-          </div>
-          <div class="cfg-card">
-            <h3>Configurações de Venda</h3>
-            <div class="fg"><label>Desconto Máximo Atacado (%)</label><input type="number" class="input-field" id="cfDescAtacado" placeholder="Ex: 15"/></div>
-            <div class="fg"><label>Qtd Mínima para Atacado</label><input type="number" class="input-field" id="cfQtdAtacado" placeholder="Ex: 10"/></div>
-            <div class="fg"><label>Alerta Estoque Mínimo (unid.)</label><input type="number" class="input-field" id="cfEstMin" placeholder="Ex: 5"/></div>
-            <div class="fg"><label>Venda sem Estoque</label>
-              <select class="input-field" id="cfSemEst"><option value="nao">Bloquear venda</option><option value="sim">Permitir venda</option></select>
+            <div class="form-card form-card--collapsible collapsed" id="categoryManagerCard">
+              <div class="form-card-header">
+                <button type="button" class="form-card-toggle" id="categoryManagerToggle" aria-expanded="false">
+                  <span class="form-card-toggle-title">
+                    <span class="form-card-chevron" aria-hidden="true">▶</span>
+                    <span>Gerenciar categorias</span>
+                  </span>
+                  <span class="form-card-toggle-meta">Editar ou excluir categorias existentes</span>
+                </button>
+                <button type="button" class="btn" id="btnAddRootCategory">+ Categoria principal</button>
+              </div>
+              <div class="form-card-body">
+                <p class="category-tree-hint">Renomeie ou exclua as categorias já cadastradas. Se a categoria tiver produtos, eles ficam sem categoria.</p>
+                <div id="categoryTreeManager" class="category-tree-manager"></div>
+              </div>
             </div>
-            <div class="fg"><label>Nome da Impressora (QZ Tray)</label><input type="text" class="input-field" id="cfPrinterName" placeholder="Ex: EPSON TM-T20"/></div>
-            <div class="fg"><label>Impressão automática ao finalizar venda</label>
-              <select class="input-field" id="cfAutoPrint"><option value="sim">Sim</option><option value="nao">Não</option></select>
-            </div>
-            <button class="btn-primary" onclick="salvarConfig()">Salvar</button>
-          </div>
-          <div class="cfg-card">
-            <h3>Categorias de Produtos</h3>
-            <div class="cat-list" id="catList"></div>
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <input type="text" class="input-field" id="novaCat" placeholder="Nova categoria..."/>
-              <button class="btn-primary" onclick="addCategoria()">+</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-    </div><!-- /pages -->
-  </div><!-- /main -->
-</div><!-- /app -->
-
-<!-- ════════════════════════════
-     MODAIS
-════════════════════════════ -->
-
-<!-- NOVO PEDIDO (tela completa como multipedidos) -->
-<div class="modal-overlay full-modal" id="modalNovoPedido" style="display:none">
-  <div class="modal-full">
-    <div class="mf-header">
-      <h2>Novo Pedido</h2>
-      <button class="modal-x" onclick="closeModal('modalNovoPedido')">✕</button>
-    </div>
-    <div class="mf-body">
-      <!-- Tipo de pedido -->
-      <div class="mf-tipos">
-        <button class="tipo-btn active" data-tipo="entrega" onclick="setTipoPedido(this)">Entrega</button>
-        <button class="tipo-btn" data-tipo="retirada" onclick="setTipoPedido(this)">Retirada</button>
-      </div>
-      <!-- Dados do cliente -->
-      <div class="mf-cliente">
-        <div class="mf-row">
-          <div class="fg"><input type="tel" class="input-field" id="npTel" placeholder="Telefone"/></div>
-          <div class="fg"><input type="text" class="input-field" id="npNome" placeholder="Nome *"/></div>
-          <div class="fg"><input type="email" class="input-field" id="npEmail" placeholder="Email (opcional)"/></div>
-        </div>
-        <div class="mf-row entrega-fields">
-          <div class="fg fg-wide"><input type="text" class="input-field" id="npRua" placeholder="Rua ou CEP"/></div>
-          <div class="fg fg-sm"><input type="text" class="input-field" id="npNum" placeholder="Nº"/></div>
-          <div class="fg"><input type="text" class="input-field" id="npComp" placeholder="Complemento"/></div>
-          <div class="fg"><input type="text" class="input-field" id="npRef" placeholder="Ponto de Referência"/></div>
-        </div>
-        <div class="mf-row entrega-fields">
-          <div class="fg"><input type="text" class="input-field" id="npBairro" placeholder="Bairro (Opcional)"/></div>
-        </div>
-      </div>
-      <!-- Produtos + Detalhe -->
-      <div class="mf-content">
-        <div class="mf-produtos">
-          <div class="mp-toolbar">
-            <select class="input-field-sm" id="npFiltro"><option>Nome</option><option>Código</option></select>
-            <input type="text" class="input-field" id="npSearch" placeholder="Pesquisar..." oninput="renderNpProd()"/>
-            <input type="text" class="input-field np-scan-input" id="npScanCode" placeholder="Bipar código de barras (Enter)" onkeydown="if(event.key==='Enter')scanCodigoManual()"/>
-            <input type="number" class="input-field-sm np-scan-qty" id="npScanQty" min="1" value="1" title="Quantidade por bipagem"/>
-            <button class="btn-sm-green" type="button" onclick="scanCodigoManual()">Bipar</button>
-            <label class="tgl-label"><input type="checkbox" id="npOcultar"/><span class="tgl-sl"></span>Ocultar indisponíveis</label>
-          </div>
-          <div class="mp-cats" id="npCats"></div>
-          <div class="mp-grid" id="npGrid"></div>
-        </div>
-        <div class="mf-detalhe">
-          <div class="md-title">Detalhes do Pedido</div>
-          <div class="md-itens" id="npItens"><div class="md-empty">Nenhum item selecionado</div></div>
-          <div class="md-desconto">
-            <div class="md-desc-row">
-              <button class="desc-tab active" data-t="acrescimo" onclick="setDescTab(this)">Acrescimo</button>
-              <button class="desc-tab" data-t="desconto" onclick="setDescTab(this)">Desconto</button>
-              <button class="desc-unit active" data-u="pct" onclick="setDescUnit(this)">%</button>
-              <button class="desc-unit" data-u="rs" onclick="setDescUnit(this)">R$</button>
-              <input type="number" class="input-field-sm" id="npDescVal" min="0" value="0" oninput="calcTotal()"/>
-            </div>
-          </div>
-          <div class="md-total">
-            <span>Total</span><strong id="npTotal">R$0,00</strong>
-          </div>
-          <div class="md-pgto">
-            <div class="md-pgto-title">Forma de Pagamento</div>
-            <div class="pgto-row">
-              <span>Pagador 1</span>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-                <button class="pgto-btn active" data-p="dinheiro" onclick="setPgto(this)">💵 Dinheiro</button>
-                <button class="pgto-btn" data-p="pix" onclick="setPgto(this)">⚡ PIX</button>
-                <button class="pgto-btn" data-p="credito" onclick="setPgto(this)">💳 Crédito</button>
-                <button class="pgto-btn" data-p="debito" onclick="setPgto(this)">💳 Débito</button>
-                <button class="pgto-btn" data-p="fiado" onclick="setPgto(this)">📝 Fiado</button>
+            <div class="form-card">
+              <div class="toolbar">
+                <input type="text" id="searchProduct" placeholder="Buscar por nome ou código..." />
+                <select id="filterProductCategory">
+                  <option value="">Todas as categorias</option>
+                </select>
+              </div>
+              <div class="table-wrap table-products-mobile">
+                <table class="product-table">
+                  <thead>
+                    <tr>
+                      <th>Produto</th>
+                      <th>Categoria</th>
+                      <th>Código</th>
+                      <th>Preço Varejo</th>
+                      <th>Custo</th>
+                      <th>Mínimo</th>
+                      <th>Qtd</th>
+                      <th>Validade</th>
+                      <th>Status</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="productTableBody"></tbody>
+                </table>
               </div>
             </div>
           </div>
-          <div class="md-obs">
-            <input type="text" class="input-field" id="npObs" placeholder="Observações do pedido..."/>
+        </section>
+
+        <!-- ══ ESTOQUE TAB ══ -->
+        <section id="estoqueTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Estoque</h2>
           </div>
+          <div class="page-body page-body--estoque">
+            <div class="estoque-tools-top">
+            <div class="form-card form-card--collapsible collapsed" id="stockEntryFormCard">
+              <div class="form-card-header">
+                <button type="button" class="form-card-toggle" id="stockEntryFormToggle" aria-expanded="false">
+                  <span class="form-card-toggle-title">
+                    <span class="form-card-chevron" aria-hidden="true">▶</span>
+                    <span>Entrada de estoque</span>
+                  </span>
+                  <span class="form-card-toggle-meta">Clique para abrir</span>
+                </button>
+              </div>
+              <div class="form-card-body">
+                <form id="stockForm" class="grid-2">
+                  <div class="field-group">
+                    <label>Produto</label>
+                    <select id="stockProductId" required></select>
+                  </div>
+                  <div class="field-group">
+                    <label>Quantidade</label>
+                    <input type="number" id="stockQty" min="1" required />
+                  </div>
+                  <div class="full form-actions">
+                    <button type="submit" class="btn primary">Adicionar ao estoque</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            <div class="form-card form-card--collapsible collapsed" id="replenishFormCard">
+              <div class="form-card-header">
+                <button type="button" class="form-card-toggle" id="replenishFormToggle" aria-expanded="false">
+                  <span class="form-card-toggle-title">
+                    <span class="form-card-chevron" aria-hidden="true">▶</span>
+                    <span>Reposição — fardo → unidades</span>
+                  </span>
+                  <span class="form-card-toggle-meta">Clique para abrir</span>
+                </button>
+              </div>
+              <div class="form-card-body">
+                <p class="replenish-hint">Saída do fardo e entrada na unidade. Ex.: 1 fardo de cerveja → 12 latas.</p>
+                <form id="replenishForm" class="grid-2">
+                  <div class="field-group">
+                    <label>Produto que vai dar saída (fardo)</label>
+                    <div class="replenish-product-search">
+                      <input type="text" id="replenishOutSearch" placeholder="Buscar por nome ou código..." autocomplete="off" />
+                      <button type="button" class="btn" id="btnReplenishOutSearch">Buscar</button>
+                    </div>
+                    <select id="replenishOutProductId" required></select>
+                  </div>
+                  <div class="field-group">
+                    <label>Produto que vai dar entrada (unidade)</label>
+                    <div class="replenish-product-search">
+                      <input type="text" id="replenishInSearch" placeholder="Buscar por nome ou código..." autocomplete="off" />
+                      <button type="button" class="btn" id="btnReplenishInSearch">Buscar</button>
+                    </div>
+                    <select id="replenishInProductId" required></select>
+                  </div>
+                  <div class="field-group">
+                    <label>Quantidade de fardos</label>
+                    <input type="number" id="replenishPackQty" min="1" step="1" value="1" required />
+                  </div>
+                  <div class="field-group">
+                    <label>Unidades por fardo</label>
+                    <input type="number" id="replenishUnitsPerPack" min="1" step="1" value="12" required />
+                    <small class="field-hint">Preenchido automaticamente se o fardo tiver «Unid./fardo» no cadastro.</small>
+                  </div>
+                  <div class="field-group full">
+                    <p id="replenishPreview" class="replenish-preview">Selecione os produtos de saída e entrada.</p>
+                  </div>
+                  <div class="full form-actions">
+                    <button type="submit" class="btn primary">Converter fardo → unidades</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            <div class="form-card form-card--collapsible collapsed" id="openBottleFormCard">
+              <div class="form-card-header">
+                <button type="button" class="form-card-toggle" id="openBottleFormToggle" aria-expanded="false">
+                  <span class="form-card-toggle-title">
+                    <span class="form-card-chevron" aria-hidden="true">▶</span>
+                    <span>Abrir garrafa — fechada → insumo (ml)</span>
+                  </span>
+                  <span class="form-card-toggle-meta">Clique para abrir</span>
+                </button>
+              </div>
+              <div class="form-card-body">
+                <p class="replenish-hint">Baixa garrafa fechada e credita ml no insumo de dose. Na <strong>primeira abertura</strong>, o insumo aberto pode ser criado automaticamente — não precisa cadastrar ml antes nem dar entrada manual.</p>
+                <form id="openBottleForm" class="grid-2">
+                  <div class="field-group">
+                    <label>Garrafa fechada (saída)</label>
+                    <div class="replenish-product-search">
+                      <input type="text" id="openBottleOutSearch" placeholder="Buscar por nome ou código..." autocomplete="off" />
+                      <button type="button" class="btn" id="btnOpenBottleOutSearch">Buscar</button>
+                    </div>
+                    <select id="openBottleOutProductId" required></select>
+                  </div>
+                  <div class="field-group">
+                    <label>Insumo garrafa aberta (entrada em ml)</label>
+                    <div class="replenish-product-search">
+                      <input type="text" id="openBottleInSearch" placeholder="Buscar por nome ou código..." autocomplete="off" />
+                      <button type="button" class="btn" id="btnOpenBottleInSearch">Buscar</button>
+                    </div>
+                    <select id="openBottleInProductId">
+                      <option value="">— Criar insumo aberto na 1ª abertura —</option>
+                    </select>
+                    <small class="field-hint">Opcional se ainda não existe insumo em ml. O sistema cria e vincula na primeira abertura.</small>
+                  </div>
+                  <div class="field-group">
+                    <label>Quantidade de garrafas a abrir</label>
+                    <input type="number" id="openBottleQty" min="1" step="1" value="1" required />
+                  </div>
+                  <div class="field-group">
+                    <label>Ml por garrafa</label>
+                    <input type="number" id="openBottleMlPerUnit" min="1" step="1" value="1000" required />
+                    <small class="field-hint">Preenchido pelo insumo, pela garrafa fechada ou informe manualmente.</small>
+                  </div>
+                  <div class="field-group full">
+                    <p id="openBottlePreview" class="replenish-preview">Selecione a garrafa fechada e o insumo aberto.</p>
+                  </div>
+                  <div class="full form-actions">
+                    <button type="submit" class="btn primary">Abrir garrafa(s)</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            </div>
+            <div class="form-card form-card--estoque-list">
+              <div class="toolbar stock-list-toolbar">
+                <input type="text" id="stockSearch" placeholder="Pesquisar produto..." />
+              </div>
+              <div class="stock-bulk-price-bar">
+                <span id="stockBulkSelectionCount" class="stock-bulk-selection-count">0 selecionados</span>
+                <button type="button" class="btn" id="btnStockSelectVisible">Selecionar visíveis</button>
+                <button type="button" class="btn" id="btnStockClearSelection">Limpar seleção</button>
+                <label class="stock-bulk-price-field">
+                  <span>Novo preço (R$)</span>
+                  <input type="number" id="stockBulkPriceValue" min="0" step="0.01" placeholder="0,00" />
+                </label>
+                <button type="button" class="btn primary" id="btnStockApplyBulkPrice">Aplicar preço</button>
+              </div>
+              <p class="stock-bulk-hint">Marque os produtos na lista para definir o mesmo preço em todos de uma vez.</p>
+              <ul id="stockList" class="simple-list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ DELIVERY TAB ══ -->
+        <section id="deliveryTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Pedidos Delivery</h2>
+          </div>
+          <div class="page-body">
+            <div id="deliveryTabLinkBox" class="form-card" style="margin-bottom:16px;"></div>
+            <div class="form-card delivery-menu-manager" style="margin-bottom:16px;">
+              <h3 class="form-card-title">Cardápio online — visibilidade dos produtos</h3>
+              <p class="delivery-menu-hint">Escolha o que aparece no link de delivery para os clientes. Produtos ocultos continuam no PDV e no estoque.</p>
+              <div class="delivery-menu-toolbar">
+                <input type="search" id="deliveryMenuSearch" placeholder="Buscar produto por nome ou código..." autocomplete="off" />
+                <button type="button" class="btn" id="btnDeliveryMenuShowAll">Mostrar todos</button>
+                <button type="button" class="btn" id="btnDeliveryMenuHideAll">Ocultar todos</button>
+              </div>
+              <p id="deliveryMenuStats" class="delivery-menu-stats">Carregando produtos…</p>
+              <ul id="deliveryMenuProductList" class="delivery-menu-list"></ul>
+            </div>
+            <div class="form-card">
+              <div class="delivery-orders-toolbar">
+                <div class="delivery-status-tabs" role="tablist" aria-label="Etapas do pedido delivery">
+                  <button type="button" class="delivery-status-tab active" data-delivery-tab="awaiting_approval" role="tab" aria-selected="true">Aprovar pedido <span class="delivery-tab-count" id="deliveryTabCountAwaiting">0</span></button>
+                  <button type="button" class="delivery-status-tab" data-delivery-tab="approved" role="tab" aria-selected="false">Em preparação <span class="delivery-tab-count" id="deliveryTabCountApproved">0</span></button>
+                  <button type="button" class="delivery-status-tab" data-delivery-tab="out_for_delivery" role="tab" aria-selected="false">Saiu para entrega <span class="delivery-tab-count" id="deliveryTabCountOut">0</span></button>
+                  <button type="button" class="delivery-status-tab" data-delivery-tab="delivered" role="tab" aria-selected="false">Finalizado <span class="delivery-tab-count" id="deliveryTabCountDelivered">0</span></button>
+                </div>
+                <button type="button" id="btnRefreshDelivery" class="btn">Atualizar</button>
+              </div>
+              <p id="deliverySyncStatus" class="delivery-sync-status">Carregando pedidos...</p>
+              <div id="deliveryListenerError" class="delivery-sync-error hidden" role="alert"></div>
+              <ul id="deliveryOrdersList" class="simple-list"></ul>
+              <div id="deliveryOrderDetails" class="panel" style="margin-top:16px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ VENDAS TAB ══ -->
+        <section id="vendasTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Vendas</h2>
+          </div>
+          <div class="page-body">
+            <div class="form-card">
+              <div class="toolbar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <div class="field-group" style="flex:1;min-width:200px;">
+                  <label>Filtrar por data</label>
+                  <input type="date" id="saleDateFilter" />
+                </div>
+                <button id="btnClearSalesHistory" class="btn danger" style="margin-top:20px;">🗑️ Limpar histórico</button>
+              </div>
+              <ul id="salesList" class="simple-list"></ul>
+              <div id="saleDetails" class="panel" style="margin-top:16px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ CAIXA GERAL / FINANCEIRO ══ -->
+        <section id="financeiroTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Caixa Geral</h2>
+          </div>
+          <div class="page-body">
+            <p class="finance-intro">
+              Controle o dinheiro geral da adega (separado do caixa do PDV). Registre entradas, retiradas e observações para manter o histórico organizado.
+            </p>
+
+            <div class="report-grid finance-summary">
+              <div class="report-card finance-card-balance">
+                <div class="report-icon">💼</div>
+                <h3>Saldo atual</h3>
+                <p id="financeBalance">R$ 0,00</p>
+              </div>
+              <div class="report-card finance-card-in">
+                <div class="report-icon">📥</div>
+                <h3>Entradas no período</h3>
+                <p id="financePeriodIn">R$ 0,00</p>
+              </div>
+              <div class="report-card finance-card-out">
+                <div class="report-icon">📤</div>
+                <h3>Retiradas no período</h3>
+                <p id="financePeriodOut">R$ 0,00</p>
+              </div>
+              <div class="report-card">
+                <div class="report-icon">📋</div>
+                <h3>Movimentações</h3>
+                <p id="financePeriodCount">0</p>
+              </div>
+            </div>
+
+            <div class="finance-layout">
+              <div class="form-card finance-form-card">
+                <h3 class="form-card-title">Nova movimentação</h3>
+                <form id="financeForm">
+                  <div class="finance-type-toggle" role="group" aria-label="Tipo de movimentação">
+                    <button type="button" class="finance-type-btn active" data-finance-type="in" id="financeTypeIn">Entrada</button>
+                    <button type="button" class="finance-type-btn" data-finance-type="out" id="financeTypeOut">Retirada</button>
+                  </div>
+                  <input type="hidden" id="financeType" value="in" />
+                  <div class="field-group">
+                    <label>Categoria</label>
+                    <select id="financeCategory" required></select>
+                  </div>
+                  <div class="field-group">
+                    <label>Valor (R$)</label>
+                    <input type="number" id="financeAmount" min="0.01" step="0.01" placeholder="0,00" required />
+                  </div>
+                  <div class="field-group">
+                    <label>Data</label>
+                    <input type="date" id="financeDate" required />
+                  </div>
+                  <div class="field-group">
+                    <label>Observação / motivo</label>
+                    <textarea id="financeNote" rows="3" placeholder="Ex: Dinheiro para compra de mercadoria no atacado" required></textarea>
+                  </div>
+                  <button type="submit" class="btn primary finance-submit-in" id="financeSubmitBtn">Registrar entrada</button>
+                </form>
+              </div>
+
+              <div class="form-card finance-history-card">
+                <div class="finance-history-toolbar">
+                  <h3 class="form-card-title" style="margin:0;">Histórico</h3>
+                  <button type="button" class="btn" id="btnPrintFinanceReport">🖨️ Imprimir extrato</button>
+                </div>
+                <div class="finance-filters">
+                  <div class="field-group">
+                    <label>De</label>
+                    <input type="date" id="financeFilterFrom" />
+                  </div>
+                  <div class="field-group">
+                    <label>Até</label>
+                    <input type="date" id="financeFilterTo" />
+                  </div>
+                  <div class="field-group">
+                    <label>Tipo</label>
+                    <select id="financeFilterType">
+                      <option value="">Todos</option>
+                      <option value="in">Entrada</option>
+                      <option value="out">Retirada</option>
+                    </select>
+                  </div>
+                  <div class="field-group">
+                    <label>Categoria</label>
+                    <select id="financeFilterCategory">
+                      <option value="">Todas</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="finance-table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Categoria</th>
+                        <th>Valor</th>
+                        <th>Saldo após</th>
+                        <th>Observação</th>
+                        <th>Registrado por</th>
+                      </tr>
+                    </thead>
+                    <tbody id="financeTableBody">
+                      <tr><td colspan="7" class="finance-empty">Nenhuma movimentação registrada.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ RELATÓRIOS TAB ══ -->
+        <section id="relatoriosTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Relatórios</h2>
+          </div>
+          <div class="page-body">
+            <div class="report-grid">
+              <div class="report-card">
+                <div class="report-icon">📈</div>
+                <h3>Total vendido hoje</h3>
+                <p id="reportToday">R$ 0,00</p>
+              </div>
+              <div class="report-card">
+                <div class="report-icon">📅</div>
+                <h3>Total vendido no mês</h3>
+                <p id="reportMonth">R$ 0,00</p>
+              </div>
+              <div class="report-card">
+                <div class="report-icon">🏆</div>
+                <h3>Produto mais vendido</h3>
+                <p id="reportTopProduct">-</p>
+              </div>
+              <div class="report-card">
+                <div class="report-icon">💰</div>
+                <h3>Lucro estimado</h3>
+                <p id="reportProfit">R$ 0,00</p>
+              </div>
+            </div>
+
+            <div class="report-filters form-card" style="margin-top:8px;">
+              <h3 class="form-card-title" style="margin-bottom:12px;">Filtros dos relatórios</h3>
+              <div class="report-filters-row">
+                <div class="field-group">
+                  <label>Canal de venda</label>
+                  <select id="reportChannelFilter">
+                    <option value="all">Todos (balcão + delivery)</option>
+                    <option value="balcao">Apenas balcão (PDV)</option>
+                    <option value="delivery">Apenas delivery</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label>Produto</label>
+                  <select id="reportProductFilter">
+                    <option value="">Todos os produtos</option>
+                  </select>
+                </div>
+              </div>
+              <div id="reportProductStats" class="report-product-stats hidden"></div>
+            </div>
+
+            <div class="form-card" style="margin-top:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
+                <h3 class="form-card-title" style="margin-bottom:0;">Relatório do Dia</h3>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <input type="date" id="reportDaySelect" style="width:auto;padding:7px 12px;font-size:13px;" />
+                  <button type="button" onclick="printDailyReport()" class="btn" style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Imprimir dia
+                  </button>
+                </div>
+              </div>
+              <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Vendas do dia (balcão e delivery finalizado). Use os filtros acima para canal e produto.</p>
+              <div class="table-wrap table-scroll">
+                <table class="monthly-table" id="dailySalesReportTable">
+                  <thead>
+                    <tr>
+                      <th>Hora</th>
+                      <th>Canal</th>
+                      <th>Cliente</th>
+                      <th>Pagamento</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="dailySalesReportBody">
+                    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;">Selecione um dia</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div id="reportSaleDetails" class="panel" style="margin-top:16px;"></div>
+            </div>
+
+            <div class="form-card" style="margin-top:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
+                <h3 class="form-card-title" style="margin-bottom:0;">Controle de caixa</h3>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <input type="date" id="cashReportDaySelect" style="width:auto;padding:7px 12px;font-size:13px;" />
+                  <button type="button" class="btn" onclick="printCashSessionsDayReport()">Imprimir caixas do dia</button>
+                </div>
+              </div>
+              <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Aberturas, sangrias e fechamentos salvos para conferência e reimpressão.</p>
+              <div class="table-wrap table-scroll">
+                <table class="monthly-table">
+                  <thead>
+                    <tr>
+                      <th>Caixa</th>
+                      <th>Abertura</th>
+                      <th>Fechamento</th>
+                      <th>Status</th>
+                      <th>Fundo</th>
+                      <th>Vendas</th>
+                      <th>Sangrias</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="cashSessionsTableBody">
+                    <tr><td colspan="8">Carregando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="form-card" style="margin-top:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+                <h3 class="form-card-title" style="margin-bottom:0;">Resumo Mensal por Dia</h3>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <select id="reportMonthSelect" style="width:auto;padding:7px 12px;font-size:13px;"></select>
+                  <button type="button" onclick="printMonthlyReport()" class="btn" style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Imprimir mês
+                  </button>
+                </div>
+              </div>
+              <div id="monthlyChartWrap" style="overflow-x:auto;">
+                <canvas id="monthlyChart" height="90"></canvas>
+              </div>
+              <div class="monthly-table-wrap table-scroll" style="margin-top:20px;">
+                <table class="monthly-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Vendas</th>
+                      <th>Total</th>
+                      <th>Desconto</th>
+                      <th>Lucro</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monthlyTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ INTELIGÊNCIA ARTIFICIAL TAB ══ -->
+        <section id="aiTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Inteligência Artificial</h2>
+            <p class="page-header-sub">Gere links de imagem, descrições, preços, promoções, estoque e recomendações</p>
+          </div>
+          <div class="page-body ai-page-body">
+            <div class="form-card ai-card">
+              <div class="ai-card-head">
+                <span class="ai-card-icon" aria-hidden="true">🖼️</span>
+                <div>
+                  <h3 class="form-card-title ai-card-title">Gerar link da imagem</h3>
+                  <p class="ai-card-desc">Cole a foto (Ctrl+V), arraste ou clique na área abaixo. O link é gerado automaticamente — sem precisar configurar nada em cada PC.</p>
+                </div>
+              </div>
+              <div class="ai-dropzone" id="aiImageDropzone" tabindex="0" role="button" aria-label="Cole ou envie a imagem">
+                <input type="file" id="aiImageFile" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+                <div class="ai-dropzone-inner" id="aiDropzoneInner">
+                  <span class="ai-dropzone-icon" aria-hidden="true">📋</span>
+                  <p class="ai-dropzone-text">Cole a imagem aqui — link gerado na hora</p>
+                  <small>JPG, PNG, WebP ou GIF — máx. 2 MB</small>
+                </div>
+                <div class="ai-image-preview hidden" id="aiImagePreview">
+                  <img id="aiImagePreviewImg" alt="Pré-visualização" />
+                </div>
+              </div>
+              <div class="ai-image-link-wrap hidden" id="aiImageLinkWrap">
+                <label>Link da imagem</label>
+                <div class="ai-link-row">
+                  <input type="text" id="aiImageLink" readonly placeholder="O link aparecerá aqui..." />
+                  <button type="button" class="btn" id="aiCopyImageLink">Copiar</button>
+                  <button type="button" class="btn primary" id="aiUseImageLink">Usar no cadastro</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-card ai-card">
+              <div class="field-group">
+                <label>Produto para análise (opcional)</label>
+                <select id="aiProductSelect"></select>
+              </div>
+              <div class="ai-actions-grid">
+                <button type="button" class="ai-action-btn" data-ai-action="description">
+                  <span class="ai-action-icon">✨</span>
+                  <span>Gerar descrição do produto</span>
+                </button>
+                <button type="button" class="ai-action-btn" data-ai-action="price">
+                  <span class="ai-action-icon">✨</span>
+                  <span>Sugerir preço</span>
+                </button>
+                <button type="button" class="ai-action-btn" data-ai-action="stock">
+                  <span class="ai-action-icon">✨</span>
+                  <span>Prever estoque</span>
+                </button>
+                <button type="button" class="ai-action-btn" data-ai-action="promotions">
+                  <span class="ai-action-icon">✨</span>
+                  <span>Criar promoções</span>
+                </button>
+                <button type="button" class="ai-action-btn" data-ai-action="recommendations">
+                  <span class="ai-action-icon">✨</span>
+                  <span>Recomendar produtos</span>
+                </button>
+              </div>
+              <p class="ai-status" id="aiStatus" aria-live="polite"></p>
+              <div class="ai-result hidden" id="aiResult"></div>
+            </div>
+
+            <div class="form-card ai-card ai-settings-card" id="aiKeysCard">
+              <h3 class="form-card-title">⚙️ Chaves da IA (configure uma vez)</h3>
+              <p class="ai-card-desc">Cole as chaves abaixo e clique em <strong>Salvar chaves</strong>. Vale para todos os PCs da rede — não precisa repetir em cada login.</p>
+              <div class="grid-2" style="margin-top:12px;">
+                <div class="field-group">
+                  <label>Chave ImgBB (fotos)</label>
+                  <input type="text" id="aiImgBBKey" placeholder="api.imgbb.com → API Key" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label>Chave Gemini (textos)</label>
+                  <input type="text" id="aiGeminiKey" placeholder="aistudio.google.com/apikey" autocomplete="off" />
+                </div>
+              </div>
+              <div class="ai-link-row" style="margin-top:12px;">
+                <button type="button" class="btn primary" id="aiSaveKeysBtn">Salvar chaves</button>
+                <span id="aiKeysStatus" class="ai-status" style="margin:0;"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ EMPRESA TAB ══ -->
+        <section id="empresaTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Configurações da Empresa</h2>
+          </div>
+          <div class="page-body">
+            <div class="form-card">
+              <form id="companyForm" class="grid-2">
+                <div class="field-group">
+                  <label>Nome da empresa</label>
+                  <input type="text" id="companyName" placeholder="BROTHER'S" />
+                </div>
+                <div class="field-group">
+                  <label>Logo (URL opcional — menu, cupom e delivery)</label>
+                  <input type="text" id="companyLogo" placeholder="https://..." />
+                </div>
+                <div class="field-group">
+                  <label>Chave Pix</label>
+                  <input type="text" id="companyPix" />
+                </div>
+                <div class="field-group">
+                  <label>Telefone</label>
+                  <input type="text" id="companyPhone" />
+                </div>
+                <div class="field-group">
+                  <label>WhatsApp da loja (com DDD)</label>
+                  <input type="tel" id="companyWhatsApp" placeholder="Ex: 11 99999-9999" autocomplete="tel" />
+                  <small style="color:var(--muted);display:block;margin-top:4px;">Ao finalizar o pedido online, o cliente envia o resumo para este WhatsApp.</small>
+                </div>
+                <div class="field-group full">
+                  <label>Endereço (opcional)</label>
+                  <input type="text" id="companyAddress" />
+                </div>
+                <div class="field-group full company-ai-settings-block" id="companyAiSettings">
+                  <h3 class="form-card-title" style="margin-bottom:8px;">🤖 Integrações IA (configure uma vez)</h3>
+                  <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">Salve aqui e todos os PCs da rede usam automaticamente. Operadores não precisam colar chave.</p>
+                  <div class="grid-2">
+                    <div class="field-group">
+                      <label>Chave ImgBB — fotos de produtos</label>
+                      <input type="text" id="companyImgBBKey" placeholder="Cole em api.imgbb.com → API Key" autocomplete="off" />
+                      <small style="color:var(--muted);"><a href="https://api.imgbb.com/" target="_blank" rel="noopener">api.imgbb.com</a> (grátis)</small>
+                    </div>
+                    <div class="field-group">
+                      <label>Chave Gemini — textos da IA</label>
+                      <input type="text" id="companyGeminiKey" placeholder="Cole em Google AI Studio" autocomplete="off" />
+                      <small style="color:var(--muted);"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> (grátis)</small>
+                    </div>
+                  </div>
+                </div>
+                <div class="field-group full cash-settings-block">
+                  <h3 class="form-card-title" style="margin-bottom:12px;">Controle de caixa</h3>
+                  <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <input type="checkbox" id="companyCashRegisterRequired" />
+                    Exigir abertura de caixa para finalizar vendas
+                  </label>
+                  <small style="color:var(--muted);display:block;">Desmarcado = vendas liberadas sem abrir caixa. Mesmo assim você pode abrir/fechar para controle e relatórios.</small>
+                </div>
+                <div class="field-group full registers-settings-block">
+                  <h3 class="form-card-title" style="margin-bottom:12px;">Caixas / PDVs</h3>
+                  <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <input type="checkbox" id="companyMultiRegister" />
+                    Usar mais de um caixa no mesmo login da loja
+                  </label>
+                  <small style="color:var(--muted);display:block;margin-bottom:12px;">
+                    Ideal para 2 ou mais computadores: cada PC escolhe seu caixa ao entrar e usa a impressora configurada para ele.
+                  </small>
+                  <div id="registersConfigWrap" class="hidden">
+                    <div id="registersConfigList"></div>
+                    <button type="button" class="btn" id="btnAddRegister" style="margin-top:8px;">+ Adicionar caixa</button>
+                  </div>
+                </div>
+                <div class="field-group full operators-settings-block">
+                  <h3 class="form-card-title" style="margin-bottom:12px;">Operadores do caixa</h3>
+                  <small style="color:var(--muted);display:block;margin-bottom:12px;">
+                    Cada vendedor entra com login e senha (PIN) ao abrir o PDV. Deixe vazio para usar só o login da loja.
+                  </small>
+                  <div id="operatorsConfigList"></div>
+                  <button type="button" class="btn" id="btnAddOperator" style="margin-top:8px;">+ Adicionar operador</button>
+                </div>
+                <div class="field-group full manager-area-settings-block">
+                  <h3 class="form-card-title" style="margin-bottom:12px;">Segurança — Relatórios e Caixa Geral</h3>
+                  <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <input type="checkbox" id="companyManagerAreaLock" />
+                    Pedir senha para abrir Relatórios e Caixa Geral
+                  </label>
+                  <small style="color:var(--muted);display:block;margin-bottom:12px;">
+                    Operadores e login da loja precisam da senha. O administrador entra sem pedir senha.
+                  </small>
+                  <div id="companyManagerAreaPasswordWrap" class="hidden">
+                    <label>Senha do gerente</label>
+                    <input type="password" id="companyManagerAreaPassword" autocomplete="new-password" placeholder="Defina a senha do gerente" />
+                    <small style="color:var(--muted);display:block;margin-top:4px;">
+                      Também protege abrir, fechar e sangria do caixa no PDV. Deixe em branco ao salvar para manter a senha atual.
+                    </small>
+                  </div>
+                </div>
+                <div class="field-group full" id="singlePrinterWrap">
+                  <label>Nome da impressora térmica (QZ Tray)</label>
+                  <input type="text" id="companyPrinter" placeholder="Ex: POS-80C, Elgin i9, EPSON TM-T20..." />
+                  <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+                    <input type="checkbox" id="companyAutoPrintReceipt" />
+                    Imprimir cupom automaticamente ao finalizar venda
+                  </label>
+                  <small style="color:var(--muted);display:block;margin-top:4px;">
+                    Marque a opção acima, informe o nome exato da impressora e deixe o
+                    <a href="https://qz.io/download" target="_blank" style="color:#00e5ff;">QZ Tray</a> aberto no PC.
+                    Use «Listar impressoras» para copiar o nome. O botão Imprimir no PDV continua manual.
+                  </small>
+                </div>
+                <div class="field-group full delivery-settings-block">
+                  <h3 class="form-card-title" style="margin-bottom:12px;">Pedidos online (Delivery)</h3>
+                  <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <input type="checkbox" id="companyDeliveryEnabled" />
+                    Ativar cardápio online para clientes
+                  </label>
+                  <div class="field-group">
+                    <label>Código do link (parte final da URL)</label>
+                    <input type="text" id="companyDeliverySlug" placeholder="ex: logindateste" autocomplete="off" />
+                    <small style="color:var(--muted);display:block;margin-top:4px;">Use algo curto (ex.: nome da loja ou e-mail sem @). Salve a empresa após alterar. Link fica: pdvstock.com.br/loja/<strong>codigo</strong></small>
+                  </div>
+                  <div class="field-row" style="margin-top:8px;">
+                    <div class="field-group">
+                      <label>Taxa de entrega (R$)</label>
+                      <input type="number" id="companyDeliveryFee" min="0" step="0.01" value="0" />
+                    </div>
+                    <div class="field-group">
+                      <label>Pedido mínimo (R$)</label>
+                      <input type="number" id="companyDeliveryMinOrder" min="0" step="0.01" value="0" />
+                    </div>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+                    <input type="checkbox" id="companyAutoPrintDeliveryReceipt" />
+                    Imprimir cupom delivery automaticamente ao receber pedido online
+                  </label>
+                  <small style="color:var(--muted);display:block;margin-top:4px;">
+                    Usa a mesma impressora térmica (QZ Tray) do caixa. Você também pode imprimir manualmente em Delivery → botão «Cupom».
+                  </small>
+                  <div class="delivery-link-box" id="deliveryLinkBox" style="margin-top:12px;">
+                    <label>Seu link de pedidos online (formato: seu-site.com.br/loja/codigo)</label>
+                    <p id="deliveryLinkHint" style="font-size:12px;color:var(--muted);margin:4px 0 8px;">O link é criado automaticamente ao entrar.</p>
+                    <p id="deliveryLinkError" style="display:none;font-size:12px;color:var(--danger);margin:0 0 8px;"></p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                      <input type="text" id="companyDeliveryLink" readonly style="flex:1;min-width:200px;" placeholder="Aguardando geração do link..." />
+                      <button type="button" id="btnRegenerateDeliveryLink" class="btn primary">Gerar link agora</button>
+                      <button type="button" id="btnCopyDeliveryLink" class="btn">Copiar link</button>
+                      <a id="btnOpenDeliveryLink" class="btn" href="#" target="_blank" rel="noopener">Abrir</a>
+                    </div>
+                  </div>
+                </div>
+                <div class="full form-actions" style="flex-wrap:wrap;gap:8px;">
+                  <button type="button" id="btnListPrinters" class="btn">📋 Listar impressoras</button>
+                  <button type="button" id="btnTestPrinter" class="btn">🖨️ Testar impressora</button>
+                  <button type="button" id="btnDownloadQzCert" class="btn">📥 Certificado (Site Manager)</button>
+                  <button type="button" id="btnDownloadQzOverride" class="btn">📥 override.crt (importante)</button>
+                  <button type="button" id="btnVerifyQzPc" class="btn">🔒 Verificar QZ neste PC</button>
+                  <button type="button" id="btnCopyQzSiteUrl" class="btn">🔗 Copiar URL do site</button>
+                  <span id="printerStatus" style="font-size:13px;color:var(--muted);flex:1;min-width:200px;"></span>
+                </div>
+                <p id="qzSecurityStatus" style="font-size:13px;color:var(--muted);margin:0 0 8px;"></p>
+                <p id="qzPcAuthStatus" style="font-size:13px;color:var(--muted);margin:0 0 8px;"></p>
+                <div id="qzSetupSteps" class="qz-setup-steps">
+                  <p><strong>Configurar QZ neste computador</strong> (Caixa 2 OK ≠ Caixa 1 OK — repita em cada PC):</p>
+                  <ol>
+                    <li>Clique <strong>override.crt (importante)</strong> e copie o arquivo para:<br><code>C:\Program Files\QZ Tray\override.crt</code><br>(clique direito → Executar como administrador no Bloco de Notas para colar, ou copie da pasta Downloads com admin).</li>
+                    <li>Clique <strong>Certificado (Site Manager)</strong> → QZ Tray → Advanced → Site Manager → Import.</li>
+                    <li><strong>Reinicie</strong> o QZ Tray (Exit na bandeja → abrir de novo).</li>
+                    <li>Popup (só na 1ª vez): <strong>Allow</strong> — <strong>não</strong> marque Remember se for certificado demo.</li>
+                    <li>Clique <strong>Verificar QZ neste PC</strong> — deve ficar verde. Depois disso a venda imprime sem popup.</li>
+                    <li>No Site Manager: deixe <strong>apenas um</strong> certificado importado (o do site).</li>
+                    <li>Site: <code id="qzSiteUrlLabel">—</code></li>
+                  </ol>
+                </div>
+                <div class="full form-actions">
+                  <button type="submit" class="btn primary">Salvar empresa</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ ADMIN TAB ══ -->
+        <section id="adminTab" class="tab-content page-section hidden">
+          <div class="page-header">
+            <h2>Admin — Controle de Licenças</h2>
+          </div>
+          <div class="page-body">
+            <div class="grid-2" style="gap:24px;">
+              <div class="form-card">
+                <h3 class="form-card-title">Clientes</h3>
+                <div class="field-group">
+                  <label>Buscar cliente</label>
+                  <input type="text" id="adminSearchUser" placeholder="Nome, email ou UID..." />
+                </div>
+                <ul id="adminUsersList" class="simple-list"></ul>
+              </div>
+              <div class="form-card">
+                <h3 class="form-card-title">Editar licença</h3>
+                <input type="hidden" id="adminLicenseUid" />
+                <div class="field-group">
+                  <label>UID do cliente</label>
+                  <input type="text" id="adminLicenseUidView" placeholder="Cole o UID do cliente" />
+                </div>
+                <div class="field-group">
+                  <label>Email</label>
+                  <input type="text" id="adminLicenseEmail" placeholder="Opcional" />
+                </div>
+                <div class="field-group">
+                  <label>Status</label>
+                  <select id="adminLicenseStatus">
+                    <option value="active">Ativa</option>
+                    <option value="blocked">Bloqueada</option>
+                    <option value="inactive">Inativa</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label>Plano</label>
+                  <select id="adminLicensePlan">
+                    <option value="monthly">Mensal</option>
+                    <option value="lifetime">Vitalício</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label>Vencimento (somente mensal)</label>
+                  <input type="date" id="adminLicenseExpiresAt" />
+                </div>
+                <div class="form-actions">
+                  <button type="button" id="btnAdminSaveLicense" class="btn primary">Salvar licença</button>
+                </div>
+              </div>
+            </div>
+            <div class="form-card" style="margin-top:24px;">
+              <h3 class="form-card-title">Copiar dados da loja</h3>
+              <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+                Copia produtos e categorias de uma conta para outra (útil para novo cliente). Não copia vendas, caixa nem pedidos delivery.
+              </p>
+              <div class="field-row">
+                <div class="field-group">
+                  <label>Conta origem (email)</label>
+                  <input type="email" id="adminCopySourceEmail" value="distribuidorabrothers@gmail.com" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label>Conta destino (email)</label>
+                  <input type="email" id="adminCopyTargetEmail" value="andmelo83@gmail.com" autocomplete="off" />
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field-group">
+                  <label>UID origem (opcional)</label>
+                  <input type="text" id="adminCopySourceUid" placeholder="Cole o UID se o e-mail não achar" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label>UID destino (opcional)</label>
+                  <input type="text" id="adminCopyTargetUid" placeholder="Cole o UID do cliente novo" autocomplete="off" />
+                </div>
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+                <input type="checkbox" id="adminCopyProducts" checked />
+                Copiar todos os produtos
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+                <input type="checkbox" id="adminCopyCategories" checked />
+                Copiar categorias e estrutura da loja
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+                <input type="checkbox" id="adminCopyReplaceProducts" checked />
+                Apagar produtos atuais do destino antes de copiar
+              </label>
+              <div class="form-actions" style="margin-top:12px;flex-wrap:wrap;gap:8px;">
+                <button type="button" id="btnAdminCopyStore" class="btn primary">Copiar para o cliente</button>
+                <button type="button" id="btnAdminClearOperators" class="btn">Limpar operadores (destino)</button>
+                <button type="button" id="btnAdminActivateDelivery" class="btn">Ativar cardápio (destino)</button>
+              </div>
+              <p id="adminCopyStoreStatus" style="font-size:13px;color:var(--muted);margin-top:8px;"></p>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /main-content -->
+      </div><!-- /app-shell-body -->
+    </div><!-- /app-shell -->
+
+    <!-- MODAL: instalar aplicativo (PWA) -->
+    <div id="pwaInstallModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title">Instalar STOCK PDV</h3>
+        <p class="modal-hint" id="pwaInstallModalHint">Use o navegador para instalar o sistema como aplicativo.</p>
+        <ul id="pwaInstallModalSteps" class="pwa-install-steps"></ul>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn primary" id="btnClosePwaInstallModal">Entendi</button>
         </div>
       </div>
     </div>
-    <div class="mf-footer">
-      <button class="btn-danger" onclick="closeModal('modalNovoPedido')">Cancelar</button>
-      <button class="btn-primary btn-lg" onclick="salvarPedido()">✓ Finalizar Pedido</button>
-    </div>
-  </div>
-</div>
 
-<!-- VER PEDIDO -->
-<div class="modal-overlay" id="modalVerPedido" style="display:none">
-  <div class="modal modal-lg">
-    <div class="modal-hd"><h3 id="vpTitulo">Pedido #0</h3>
-      <div style="display:flex;gap:8px">
-        <button class="btn-sm-outline" onclick="imprimirPedido()">🖨️ Imprimir</button>
-        <button class="modal-x" onclick="closeModal('modalVerPedido')">✕</button>
+    <!-- MODAL: escolher caixa / PDV -->
+    <div id="registerPickerModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title">Qual caixa é este computador?</h3>
+        <p class="modal-hint">Cada PDV deve escolher um caixa. Os dois podem ficar abertos ao mesmo tempo.</p>
+        <div id="registerPickerList" class="register-picker-list"></div>
       </div>
     </div>
-    <div class="modal-bd" id="vpBody"></div>
-    <div class="modal-ft" id="vpFooter"></div>
-  </div>
-</div>
 
-<!-- PRODUTO / ITEM CARDÁPIO -->
-<div class="modal-overlay" id="modalProduto" style="display:none">
-  <div class="modal">
-    <div class="modal-hd"><h3 id="mpTitulo">Novo Produto</h3><button class="modal-x" onclick="closeModal('modalProduto')">✕</button></div>
-    <div class="modal-bd">
-      <div class="form-row">
-        <div class="fg"><label>Nome *</label><input type="text" class="input-field" id="mpNome" placeholder="Ex: Coca-Cola 2L"/></div>
-        <div class="fg"><label>Código de Barras</label><input type="text" class="input-field" id="mpCodigo" placeholder="EAN / interno"/></div>
+    <!-- MODAL: login operador -->
+    <div id="operatorLoginModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title">Login do operador</h3>
+        <p class="modal-hint">Informe login e senha cadastrados em Empresa.</p>
+        <form id="operatorLoginForm">
+          <div class="field-group" style="margin-top:12px;">
+            <label>Login</label>
+            <input type="text" id="operatorLoginInput" autocomplete="username" placeholder="Ex: maria" required />
+          </div>
+          <div class="field-group">
+            <label>Senha / PIN</label>
+            <input type="password" id="operatorPinInput" autocomplete="current-password" placeholder="Senha" required />
+          </div>
+          <p id="operatorLoginError" class="modal-error hidden"></p>
+          <div class="modal-actions" style="margin-top:16px;">
+            <button type="submit" class="btn primary">Entrar</button>
+          </div>
+        </form>
       </div>
-      <div class="form-row">
-        <div class="fg"><label>Categoria</label><select class="input-field" id="mpCat"></select></div>
-        <div class="fg"><label>Unidade</label>
-          <select class="input-field" id="mpUnidade"><option>UN</option><option>KG</option><option>LT</option><option>CX</option><option>PC</option></select>
+    </div>
+
+    <!-- MODAL: senha gerente (Relatórios / Caixa) -->
+    <div id="managerPasswordModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title" id="managerPasswordModalTitle">Senha do gerente</h3>
+        <p class="modal-hint">Informe a senha para acessar esta área.</p>
+        <form id="managerPasswordForm">
+          <div class="field-group" style="margin-top:12px;">
+            <label>Senha</label>
+            <input type="password" id="managerPasswordInput" autocomplete="current-password" placeholder="Senha" required />
+          </div>
+          <p id="managerPasswordError" class="modal-error hidden"></p>
+          <div class="modal-actions" style="margin-top:16px;">
+            <button type="button" class="btn-modal-cancel" id="btnCancelManagerPassword">Cancelar</button>
+            <button type="submit" class="btn primary">Confirmar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: abrir caixa -->
+    <div id="cashOpenModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title">Abrir caixa</h3>
+        <p class="modal-hint">Informe o valor em dinheiro no caixa (fundo de troco).</p>
+        <div class="field-group" style="margin-top:12px;">
+          <label>Valor inicial (R$)</label>
+          <input type="number" id="cashOpeningAmount" min="0" step="0.01" value="0" />
+        </div>
+        <div class="field-group">
+          <label>Observação (opcional)</label>
+          <input type="text" id="cashOpeningNote" placeholder="Ex: turno manhã" />
+        </div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn-modal-cancel" id="btnCancelCashOpen">Cancelar</button>
+          <button type="button" class="btn primary" id="btnConfirmCashOpen">Abrir caixa</button>
         </div>
       </div>
-      <div class="form-row">
-        <div class="fg"><label>Preço Atacado (R$) *</label><input type="number" class="input-field" id="mpAtacado" min="0" step="0.01" placeholder="0,00"/></div>
-        <div class="fg"><label>Custo (R$)</label><input type="number" class="input-field" id="mpCusto" min="0" step="0.01" placeholder="0,00"/></div>
-      </div>
-      <div class="fg">
-        <label>Lotes por Quantidade de Caixas</label>
-        <div class="lotes-wrap">
-          <div id="mpLotesList"></div>
-          <button class="btn-sm-green" type="button" onclick="addLoteRow()">+ Adicionar Lote</button>
+    </div>
+
+    <!-- MODAL: sangria -->
+    <div id="cashSangriaModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title">Sangria</h3>
+        <p class="modal-hint">Retirada de dinheiro do caixa (registrada no relatório).</p>
+        <div class="field-group" style="margin-top:12px;">
+          <label>Valor retirado (R$)</label>
+          <input type="number" id="cashSangriaAmount" min="0.01" step="0.01" />
+        </div>
+        <div class="field-group">
+          <label>Motivo</label>
+          <input type="text" id="cashSangriaNote" placeholder="Ex: pagamento fornecedor" />
+        </div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn-modal-cancel" id="btnCancelCashSangria">Cancelar</button>
+          <button type="button" class="btn primary" id="btnConfirmCashSangria">Registrar sangria</button>
         </div>
       </div>
-      <div class="form-row">
-        <div class="fg"><label>Estoque Inicial</label><input type="number" class="input-field" id="mpEstInicial" min="0" placeholder="0"/></div>
-        <div class="fg"><label>Estoque Mínimo</label><input type="number" class="input-field" id="mpEstMin" min="0" placeholder="5"/></div>
-      </div>
-      <div class="fg"><label>Foto (URL)</label><input type="text" class="input-field" id="mpFoto" placeholder="https://..."/></div>
-      <div class="fg"><label>Disponível</label>
-        <select class="input-field" id="mpDisp"><option value="1">Sim</option><option value="0">Não</option></select>
-      </div>
-      <input type="hidden" id="mpId"/>
     </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalProduto')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarProduto()">Salvar Produto</button>
-    </div>
-  </div>
-</div>
 
-<!-- CATEGORIA -->
-<div class="modal-overlay" id="modalCategoria" style="display:none">
-  <div class="modal modal-sm">
-    <div class="modal-hd"><h3 id="mcTitulo">Nova Categoria</h3><button class="modal-x" onclick="closeModal('modalCategoria')">✕</button></div>
-    <div class="modal-bd">
-      <div class="fg"><label>Nome da Categoria *</label><input type="text" class="input-field" id="mcNome" placeholder="Ex: Cerveja"/></div>
-      <input type="hidden" id="mcId"/>
-    </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalCategoria')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarCategoria()">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<!-- ENTRADA ESTOQUE -->
-<div class="modal-overlay" id="modalEntrada" style="display:none">
-  <div class="modal">
-    <div class="modal-hd"><h3>Entrada de Estoque</h3><button class="modal-x" onclick="closeModal('modalEntrada')">✕</button></div>
-    <div class="modal-bd">
-      <div class="fg"><label>Produto</label><select class="input-field" id="entProd"></select></div>
-      <div class="form-row">
-        <div class="fg"><label>Quantidade</label><input type="number" class="input-field" id="entQtd" min="1" placeholder="0"/></div>
-        <div class="fg"><label>Custo Unitário (R$)</label><input type="number" class="input-field" id="entCusto" min="0" step="0.01" placeholder="0,00"/></div>
-      </div>
-      <div class="fg"><label>Fornecedor</label><input type="text" class="input-field" id="entForn" placeholder="Nome do fornecedor"/></div>
-      <div class="fg"><label>Observação</label><input type="text" class="input-field" id="entObs" placeholder="NF, lote, etc."/></div>
-    </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalEntrada')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarEntrada()">Confirmar Entrada</button>
-    </div>
-  </div>
-</div>
-
-<!-- CLIENTE -->
-<div class="modal-overlay" id="modalCliente" style="display:none">
-  <div class="modal">
-    <div class="modal-hd"><h3 id="mclTitulo">Novo Cliente</h3><button class="modal-x" onclick="closeModal('modalCliente')">✕</button></div>
-    <div class="modal-bd">
-      <div class="form-row">
-        <div class="fg"><label>Nome *</label><input type="text" class="input-field" id="clNome" placeholder="Nome / Razão Social"/></div>
-        <div class="fg"><label>Tipo</label>
-          <select class="input-field" id="clTipo"><option value="varejo">Varejo</option><option value="atacado">Atacado</option></select>
+    <!-- MODAL: fechar caixa -->
+    <div id="cashCloseModal" class="modal-overlay hidden">
+      <div class="modal-box modal-box--wide">
+        <h3 class="modal-title">Fechar caixa</h3>
+        <div id="cashCloseSummary" class="cash-close-summary"></div>
+        <div class="field-group" style="margin-top:12px;">
+          <label>Dinheiro contado no caixa (R$)</label>
+          <input type="number" id="cashCountedAmount" min="0" step="0.01" />
+        </div>
+        <div class="field-group">
+          <label>Observação (opcional)</label>
+          <input type="text" id="cashClosingNote" placeholder="Ex: conferido com gerente" />
+        </div>
+        <p id="cashCloseDiffHint" class="cash-close-diff"></p>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn-modal-cancel" id="btnCancelCashClose">Cancelar</button>
+          <button type="button" class="btn primary" id="btnConfirmCashClose">Fechar caixa</button>
         </div>
       </div>
-      <div class="form-row">
-        <div class="fg"><label>Telefone / WhatsApp</label><input type="tel" class="input-field" id="clTel" placeholder="(11) 99999-9999"/></div>
-        <div class="fg"><label>CNPJ / CPF</label><input type="text" class="input-field" id="clDoc" placeholder="00.000.000/0000-00"/></div>
+    </div>
+
+    <!-- MODAL: seleção de tipo de preço ao bipar -->
+    <div id="priceModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title">Selecionar tipo de preço</h3>
+        <p id="modalProductName" class="modal-product-name"></p>
+        <div class="modal-actions">
+          <button id="modalBtnRetail" class="btn-modal-retail">
+            <strong>VAREJO</strong>
+            <span id="modalRetailPrice"></span>
+          </button>
+          <button id="modalBtnWholesale" class="btn-modal-wholesale">
+            <strong>ATACADO</strong>
+            <span id="modalWholesalePrice"></span>
+          </button>
+        </div>
+        <button id="modalBtnCancel" class="btn-modal-cancel">Cancelar</button>
       </div>
-      <div class="fg"><label>Endereço</label><input type="text" class="input-field" id="clEnd" placeholder="Rua, número, bairro"/></div>
-      <div class="form-row">
-        <div class="fg"><label>Limite de Crédito (R$)</label><input type="number" class="input-field" id="clLimite" min="0" step="0.01" placeholder="0,00"/></div>
-        <div class="fg"><label>Desconto Fixo (%)</label><input type="number" class="input-field" id="clDesc" min="0" max="100" placeholder="0"/></div>
-      </div>
-      <input type="hidden" id="clId"/>
     </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarCliente()">Salvar</button>
-    </div>
-  </div>
-</div>
 
-<!-- ABRIR CAIXA -->
-<div class="modal-overlay" id="modalAbrirCaixa" style="display:none">
-  <div class="modal modal-sm">
-    <div class="modal-hd"><h3>Abrir Caixa</h3><button class="modal-x" onclick="closeModal('modalAbrirCaixa')">✕</button></div>
-    <div class="modal-bd">
-      <div class="fg"><label>Saldo Inicial (R$)</label><input type="number" class="input-field" id="cxIni" min="0" step="0.01" placeholder="0,00"/></div>
-    </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalAbrirCaixa')">Cancelar</button>
-      <button class="btn-primary" onclick="abrirCaixa()">Abrir</button>
-    </div>
-  </div>
-</div>
-
-<!-- SANGRIA -->
-<div class="modal-overlay" id="modalSangria" style="display:none">
-  <div class="modal modal-sm">
-    <div class="modal-hd"><h3>Sangria de Caixa</h3><button class="modal-x" onclick="closeModal('modalSangria')">✕</button></div>
-    <div class="modal-bd">
-      <div class="fg"><label>Valor (R$)</label><input type="number" class="input-field" id="sgVal" min="0" step="0.01" placeholder="0,00"/></div>
-      <div class="fg"><label>Motivo</label><input type="text" class="input-field" id="sgMot" placeholder="Ex: Pagamento fornecedor"/></div>
-    </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalSangria')">Cancelar</button>
-      <button class="btn-danger" onclick="registrarSangria()">Confirmar</button>
-    </div>
-  </div>
-</div>
-
-<!-- SUPRIMENTO -->
-<div class="modal-overlay" id="modalSuprimento" style="display:none">
-  <div class="modal modal-sm">
-    <div class="modal-hd"><h3>Suprimento de Caixa</h3><button class="modal-x" onclick="closeModal('modalSuprimento')">✕</button></div>
-    <div class="modal-bd">
-      <div class="fg"><label>Valor (R$)</label><input type="number" class="input-field" id="spVal" min="0" step="0.01" placeholder="0,00"/></div>
-      <div class="fg"><label>Motivo</label><input type="text" class="input-field" id="spMot" placeholder="Ex: Troco inicial"/></div>
-    </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalSuprimento')">Cancelar</button>
-      <button class="btn-primary" onclick="registrarSuprimento()">Confirmar</button>
-    </div>
-  </div>
-</div>
-
-<!-- USUÁRIO -->
-<div class="modal-overlay" id="modalUser" style="display:none">
-  <div class="modal modal-sm">
-    <div class="modal-hd"><h3 id="muTitulo">Novo Usuário</h3><button class="modal-x" onclick="closeModal('modalUser')">✕</button></div>
-    <div class="modal-bd">
-      <div class="fg"><label>Nome Completo *</label><input type="text" class="input-field" id="uNome" placeholder="Nome do operador"/></div>
-      <div class="fg"><label>Login *</label><input type="text" class="input-field" id="uLogin" placeholder="login único"/></div>
-      <div class="fg"><label>Senha *</label><input type="password" class="input-field" id="uSenha" placeholder="Mínimo 4 caracteres"/></div>
-      <div class="fg"><label>Perfil</label>
-        <select class="input-field" id="uPerfil"><option value="operador">Operador</option><option value="admin">Administrador</option></select>
-      </div>
-      <input type="hidden" id="uId"/>
-    </div>
-    <div class="modal-ft">
-      <button class="btn-outline" onclick="closeModal('modalUser')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarUser()">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
-
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=20260423"></script>
-<script src="app.js?v=20260423"></script>
-</body>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"></script>
+    <script src="qz-security.js?v=202606206"></script>
+    <script src="firebase-config.js?v=202606155"></script>
+    <script src="ai.js?v=202606164"></script>
+    <script src="app.js?v=202610142304"></script>
+  </body>
 </html>
