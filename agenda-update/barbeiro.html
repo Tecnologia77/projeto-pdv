@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Barber Admin" />
+  <meta name="theme-color" content="#1a1d24" />
+  <link rel="manifest" href="/manifest-admin.webmanifest" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <title>App Barber Admin — Painel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=11" />
+</head>
+<body>
+  <div class="salon-noise" aria-hidden="true"></div>
+  <div class="salon-content barber-page">
+    <div id="msg"></div>
+    <div id="apptAlert" class="appt-alert hidden" role="status"></div>
+
+    <section id="pendingAccess" class="salon-card hidden">
+      <h2 class="section-title">Acesso aguardando liberação</h2>
+      <p class="muted">
+        Sua conta existe, mas o painel só funciona depois que o administrador confirma o pagamento do plano.
+        O link público da barbearia também fica desativado até a liberação.
+      </p>
+      <p class="muted" id="pendingSalonName"></p>
+      <button type="button" class="salon-btn-primary" id="btnPendingLogout" style="margin-top:1rem">Sair</button>
+    </section>
+
+    <div id="barberApp" class="hidden">
+
+    <section class="barber-dashboard" id="barberDashboard">
+      <div id="barberCover" class="public-cover hidden"></div>
+      <header class="public-header salon-card barber-dashboard-header">
+        <div class="public-brand-row barber-brand-row">
+          <img id="barberSalonLogo" class="public-logo hidden" alt="" />
+          <div id="barberSalonLogoPh" class="public-logo public-logo-ph hidden">B</div>
+          <div class="barber-brand-text">
+            <h1 class="public-title" id="barberSalonName">Barbearia</h1>
+            <p class="muted" id="barberSalonMeta">Painel administrativo</p>
+          </div>
+          <button type="button" class="salon-btn-ghost barber-logout-btn" id="btnLogout">Sair</button>
+        </div>
+        <div class="barber-quick-stats" id="barberQuickStats">
+          <div class="barber-stat-pill">
+            <span class="barber-stat-num" id="barberStatPending">0</span>
+            <small>Aguardando confirmação</small>
+          </div>
+          <div class="barber-stat-pill barber-stat-pill-accent">
+            <span class="barber-stat-num" id="barberStatToday">0</span>
+            <small>Confirmados hoje</small>
+          </div>
+          <div class="barber-stat-pill">
+            <span class="barber-stat-num" id="barberStatDone">0</span>
+            <small>Concluídos no mês</small>
+          </div>
+        </div>
+        <div class="barber-quick-actions">
+          <input class="salon-input barber-link-input" type="text" id="publicLink" readonly aria-label="Link público da barbearia" />
+          <div class="barber-quick-actions-row">
+            <button type="button" class="salon-btn-primary" id="btnCopyLink">Copiar link</button>
+            <a class="salon-btn-outline" id="previewLink" href="#" target="_blank" rel="noopener">Ver página pública</a>
+          </div>
+          <div class="barber-edit-quick-row">
+            <button type="button" class="salon-btn-outline" id="btnGoEditServices">Editar serviços</button>
+            <button type="button" class="salon-btn-outline" id="btnGoEditSettings">Editar informações</button>
+          </div>
+        </div>
+      </header>
+    </section>
+
+    <div class="admin-tabs toolbar barber-main-tabs" id="adminTabs">
+      <button type="button" class="salon-btn-outline is-active" data-tab="agenda">Agenda</button>
+      <button type="button" class="salon-btn-outline" data-tab="services">Serviços</button>
+      <button type="button" class="salon-btn-outline" data-tab="pros">Profissionais</button>
+      <button type="button" class="salon-btn-outline" data-tab="blocks">Bloqueios</button>
+      <button type="button" class="salon-btn-outline" data-tab="finance">Financeiro</button>
+      <button type="button" class="salon-btn-outline" data-tab="cash">Caixa</button>
+      <button type="button" class="salon-btn-outline" data-tab="memberships">Assinaturas</button>
+      <button type="button" class="salon-btn-outline" data-tab="settings">Configurações</button>
+    </div>
+    <div class="admin-tabs toolbar pro-desk-tabs hidden" id="proDeskTabs" aria-label="Painel por profissional"></div>
+
+    <div id="tabAgenda" class="tab-panel">
+      <div class="barber-layout">
+        <div>
+          <section class="salon-card">
+            <div class="finance-head" style="margin-bottom:0.5rem">
+              <h2 class="section-title" style="margin:0">Agenda</h2>
+              <button type="button" class="salon-btn-primary" id="btnManualApptToggle">+ Lançar atendimento</button>
+            </div>
+
+            <div class="manual-appt-box hidden" id="manualApptBox">
+              <h3 class="section-subtitle" style="margin-top:0">Lançar atendimento / agendamento</h3>
+              <p class="muted manual-appt-hint">
+                Use para clientes atendidos sem agendamento (mesmo em data ou horário que já passou) ou para marcar um horário para o cliente.
+                Data/hora no passado entra como <strong>Concluído</strong>; no futuro, como <strong>Confirmado</strong>.
+              </p>
+              <form id="formManualAppt">
+                <div class="grid-2">
+                  <div class="field">
+                    <label for="manualClientName">Nome do cliente</label>
+                    <input class="salon-input" type="text" id="manualClientName" required />
+                  </div>
+                <div class="field">
+                  <label for="manualClientPhone">Telefone</label>
+                  <input class="salon-input" type="tel" id="manualClientPhone" placeholder="O mesmo da assinatura, se houver" />
+                </div>
+              </div>
+              <p class="muted" id="manualSubscriberHint" style="margin:0 0 0.6rem;font-size:0.85rem"></p>
+                <div class="field">
+                  <label for="manualPro">Profissional</label>
+                  <select class="salon-input" id="manualPro" required></select>
+                </div>
+                <div class="field">
+                  <label>Serviços</label>
+                  <div class="manual-svc-list" id="manualServices"></div>
+                </div>
+                <div class="grid-2">
+                  <div class="field">
+                    <label for="manualDate">Data</label>
+                    <input class="salon-input" type="date" id="manualDate" required />
+                  </div>
+                  <div class="field">
+                    <label for="manualTime">Horário</label>
+                    <input class="salon-input" type="time" id="manualTime" required />
+                  </div>
+                </div>
+                <div class="grid-2">
+                  <div class="field">
+                    <label for="manualPrice">Valor cobrado (R$)</label>
+                    <input class="salon-input" type="number" id="manualPrice" min="0" step="0.01" required />
+                  </div>
+                  <div class="field" id="manualPayField">
+                    <label for="manualPay">Forma de pagamento</label>
+                    <select class="salon-input" id="manualPay">
+                      <option value="cash">Dinheiro</option>
+                      <option value="pix">PIX</option>
+                      <option value="credit">Crédito</option>
+                      <option value="debit">Débito</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="muted manual-appt-status" id="manualStatusHint"></p>
+                <div class="toolbar">
+                  <button type="submit" class="salon-btn-primary" id="btnManualSubmit">Salvar</button>
+                  <button type="button" class="salon-btn-ghost" id="btnManualCancel">Cancelar</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="toolbar" style="margin-bottom:0.75rem">
+              <button type="button" class="salon-btn-outline is-active" data-range="60">60 dias</button>
+              <button type="button" class="salon-btn-outline" data-range="week">Semana</button>
+              <button type="button" class="salon-btn-outline" data-range="day">Dia</button>
+            </div>
+            <div class="field" id="weekFields" style="display:none">
+              <label>Semana a partir de</label>
+              <input class="salon-input" type="date" id="weekStart" />
+            </div>
+            <div class="field" id="dayFields" style="display:none">
+              <label>Dia</label>
+              <input class="salon-input" type="date" id="singleDay" />
+            </div>
+            <div class="appt-list" id="barberList"></div>
+          </section>
+        </div>
+        <aside>
+          <section class="salon-card-muted">
+            <h2 class="section-title">Resumo</h2>
+            <p class="muted" id="summaryText"></p>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tabServices" class="tab-panel hidden">
+      <section class="salon-card">
+        <h2 class="section-title">Serviços</h2>
+        <p class="muted" style="margin-bottom:0.75rem">Toque em <strong>Editar</strong> para alterar nome, preço ou duração. Você também pode adicionar novos serviços abaixo.</p>
+        <div id="servicesList"></div>
+        <hr class="divider" />
+        <h3 class="section-subtitle" id="svcFormTitle">Adicionar serviço</h3>
+        <form id="formService">
+          <input type="hidden" id="svcEditId" value="" />
+          <div class="field">
+            <label>Nome</label>
+            <input class="salon-input" type="text" id="svcName" required />
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>Duração (min)</label>
+              <input class="salon-input" type="number" id="svcDur" min="5" required />
+            </div>
+            <div class="field">
+              <label>Preço (R$)</label>
+              <input class="salon-input" type="number" id="svcPrice" min="0" step="0.01" required />
+            </div>
+          </div>
+          <div class="toolbar" style="margin-top:0.5rem">
+            <button type="submit" class="salon-btn-primary" id="btnSvcSubmit">Adicionar serviço</button>
+            <button type="button" class="salon-btn-ghost hidden" id="btnSvcCancel">Cancelar edição</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div id="tabPros" class="tab-panel hidden">
+      <section class="salon-card">
+        <h2 class="section-title">Profissionais</h2>
+        <p class="muted" style="margin-bottom:0.75rem">Adicione profissionais e gere o e-mail e a senha de acesso de cada um. O profissional entra pela mesma tela de login e vê apenas os próprios agendamentos e financeiro. Você pode bloquear ou excluir profissionais (o dono não pode ser excluído).</p>
+        <div id="prosList"></div>
+        <hr class="divider" />
+        <h3 class="section-subtitle" id="proFormTitle">Adicionar profissional</h3>
+        <form id="formPro">
+          <input type="hidden" id="proEditId" value="" />
+          <div class="field">
+            <label>Nome do profissional</label>
+            <input class="salon-input" type="text" id="proName" required />
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="proPhone">Telefone / WhatsApp</label>
+              <input class="salon-input" type="tel" id="proPhone" placeholder="(11) 99999-0000" />
+            </div>
+            <div class="field" id="proShopPercentField">
+              <label for="proShopPercent">Desconto da barbearia (%)</label>
+              <input class="salon-input" type="number" id="proShopPercent" min="0" max="100" step="0.5" value="40" />
+            </div>
+          </div>
+          <div class="pro-access-box" id="proAccessBox">
+            <h4 class="pro-access-title">Acesso ao painel do profissional</h4>
+            <div id="proAccessNew">
+              <p class="muted pro-access-hint">Defina o e-mail e a senha que o profissional vai usar para entrar. Deixe em branco se ele não precisar de acesso agora.</p>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="proEmail">E-mail de login</label>
+                  <input class="salon-input" type="email" id="proEmail" autocomplete="off" placeholder="profissional@email.com" />
+                </div>
+                <div class="field">
+                  <label for="proPassword">Senha (mín. 6 caracteres)</label>
+                  <div class="pro-pass-row">
+                    <input class="salon-input" type="text" id="proPassword" autocomplete="new-password" minlength="6" />
+                    <button type="button" class="salon-btn-ghost" id="btnProGenPass">Gerar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="proAccessExisting" class="hidden">
+              <p class="muted pro-access-hint">Login ativo: <strong id="proAccessEmail"></strong></p>
+              <button type="button" class="salon-btn-ghost" id="btnProResetPass">Enviar e-mail para redefinir senha</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>URL da foto de perfil</label>
+            <input class="salon-input" type="url" id="proPhoto" placeholder="https://exemplo.com/foto.jpg" />
+            <p class="muted" style="margin-top:0.35rem;font-size:0.8rem">Cole o link da foto. O cliente verá nome e imagem ao agendar.</p>
+          </div>
+          <div class="pro-form-preview hidden" id="proPhotoPreview">
+            <img id="proPhotoImg" alt="Prévia da foto" />
+          </div>
+          <div class="toolbar" style="margin-top:0.5rem">
+            <button type="submit" class="salon-btn-primary" id="btnProSubmit">Adicionar profissional</button>
+            <button type="button" class="salon-btn-ghost hidden" id="btnProCancel">Cancelar edição</button>
+            <button type="button" class="salon-btn-ghost pro-delete-btn hidden" id="btnProDelete">Excluir profissional</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div id="tabBlocks" class="tab-panel hidden">
+      <section class="salon-card">
+        <h2 class="section-title">Bloquear horários</h2>
+        <p class="muted">Férias, almoço ou indisponibilidade — os clientes não verão esses horários.</p>
+        <div id="blocksList"></div>
+        <hr class="divider" />
+        <form id="formBlock">
+          <div class="field">
+            <label>Profissional (opcional)</label>
+            <select class="salon-input" id="blockPro"></select>
+          </div>
+          <div class="field">
+            <label>Motivo</label>
+            <input class="salon-input" type="text" id="blockLabel" placeholder="Almoço, folga…" />
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>Início</label>
+              <input class="salon-input" type="datetime-local" id="blockStart" required />
+            </div>
+            <div class="field">
+              <label>Fim</label>
+              <input class="salon-input" type="datetime-local" id="blockEnd" required />
+            </div>
+          </div>
+          <button type="submit" class="salon-btn-primary">Bloquear período</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="tabFinance" class="tab-panel hidden">
+      <section class="salon-card">
+        <div class="finance-head">
+          <div>
+            <h2 class="section-title" style="margin:0">Financeiro</h2>
+            <p class="muted" style="margin:0.35rem 0 0;font-size:0.85rem">Faturamento do mês ou de um dia. Marque uma forma de pagamento, várias ao mesmo tempo, ou Todas para ver o total.</p>
+          </div>
+          <div class="finance-head-filters">
+            <div class="field finance-month-field">
+              <label for="financeMonth">Mês</label>
+              <input class="salon-input" type="month" id="financeMonth" />
+            </div>
+            <div class="field finance-month-field">
+              <label for="financeDay">Dia</label>
+              <input class="salon-input" type="date" id="financeDay" />
+            </div>
+            <button type="button" class="salon-btn-ghost" id="btnFinanceClearDay">Mês inteiro</button>
+          </div>
+        </div>
+        <div class="finance-pay-filter" id="financePayFilter">
+          <span class="finance-pay-filter-label">Receita por forma de pagamento</span>
+          <div class="finance-pay-filter-btns">
+            <button type="button" class="salon-btn-outline is-active" data-pay-filter="all" aria-pressed="true">Todas</button>
+            <button type="button" class="salon-btn-outline" data-pay-filter="pix" aria-pressed="false">PIX</button>
+            <button type="button" class="salon-btn-outline" data-pay-filter="cash" aria-pressed="false">Dinheiro</button>
+            <button type="button" class="salon-btn-outline" data-pay-filter="credit" aria-pressed="false">Crédito</button>
+            <button type="button" class="salon-btn-outline" data-pay-filter="debit" aria-pressed="false">Débito</button>
+          </div>
+        </div>
+        <p class="finance-pay-total" id="financePayTotal"></p>
+
+        <div class="admin-tabs toolbar finance-sub-tabs" id="financeSubTabs">
+          <button type="button" class="salon-btn-outline is-active" data-finance-tab="billing">Faturamento</button>
+          <button type="button" class="salon-btn-outline" data-finance-tab="in">Entradas</button>
+          <button type="button" class="salon-btn-outline" data-finance-tab="out">Saídas</button>
+          <button type="button" class="salon-btn-outline" data-finance-tab="pros">Profissionais</button>
+        </div>
+
+        <div id="financeTabBilling" class="finance-sub-panel">
+          <p class="muted finance-panel-intro">O que foi cobrado nos atendimentos concluídos. A parte do barbeiro admin fica com a casa. A parte dos profissionais é a comissão. Cortes de assinatura não entram nesse dinheiro.</p>
+          <div class="finance-stats finance-stats-grid" id="financeBillingKpis"></div>
+          <div class="finance-result-line" id="financeResultLine"></div>
+          <h3 class="section-subtitle" style="margin-top:1.1rem">Divisão</h3>
+          <div class="cash-pro-list" id="financePeople"></div>
+          <h3 class="section-subtitle" style="margin-top:1.1rem">Atendimentos do período</h3>
+          <div id="financeList" class="finance-list"></div>
+        </div>
+
+        <div id="financeTabIn" class="finance-sub-panel hidden">
+          <p class="muted finance-panel-intro">Dinheiro que entrou no mês: atendimentos pagos e outras entradas lançadas no caixa.</p>
+          <div class="finance-stats finance-stats-grid" id="financeInKpis"></div>
+          <h3 class="section-subtitle" style="margin-top:1.1rem">Atendimentos recebidos</h3>
+          <div class="finance-pay-grid" id="financeInServices"></div>
+          <h3 class="section-subtitle" style="margin-top:1.1rem">Outras entradas</h3>
+          <div class="finance-list" id="financeInMoves"></div>
+        </div>
+
+        <div id="financeTabOut" class="finance-sub-panel hidden">
+          <p class="muted finance-panel-intro">Dinheiro que saiu no mês: despesas, compras, pagamentos a profissionais e sangrias.</p>
+          <div class="finance-stats finance-stats-grid" id="financeOutKpis"></div>
+          <div class="finance-list" id="financeOutMoves" style="margin-top:0.85rem"></div>
+        </div>
+
+        <div id="financeTabPros" class="finance-sub-panel hidden">
+          <p class="muted finance-panel-intro">Produção de cada profissional, desconto da casa e o que ainda falta pagar pelo caixa. O barbeiro admin fica com 100% da própria produção.</p>
+          <div class="cash-pro-list" id="financeProsList"></div>
+        </div>
+
+        <div class="finance-actions">
+          <button type="button" class="salon-btn-outline" id="btnClearFinance">Arquivar relatório do período</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="tabCash" class="tab-panel hidden">
+      <section class="salon-card">
+        <div class="finance-head">
+          <div>
+            <h2 class="section-title" style="margin:0">Caixa</h2>
+            <p class="muted" style="margin:0.35rem 0 0;font-size:0.85rem" id="cashStatusText">Carregando…</p>
+            <p class="muted" style="margin:0.25rem 0 0;font-size:0.8rem">Aqui é a gaveta do dia: abrir, lançar entrada ou saída e fechar. O faturamento do mês fica na aba Financeiro.</p>
+          </div>
+          <span class="badge" id="cashStatusBadge">—</span>
+        </div>
+
+        <div class="admin-tabs toolbar finance-sub-tabs" id="cashSubTabs">
+          <button type="button" class="salon-btn-outline is-active" data-cash-tab="current">Caixa atual</button>
+          <button type="button" class="salon-btn-outline" data-cash-tab="pros">Profissionais</button>
+          <button type="button" class="salon-btn-outline" data-cash-tab="history">Histórico</button>
+        </div>
+
+        <div id="cashTabCurrent">
+          <div id="cashClosedBox" class="hidden">
+            <h3 class="section-subtitle">Abrir barbearia e caixa</h3>
+            <form id="formCashOpen">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cashOpenValue">Valor inicial em dinheiro (troco)</label>
+                  <input class="salon-input" type="number" id="cashOpenValue" min="0" step="0.01" value="0" required />
+                </div>
+                <div class="field">
+                  <label for="cashOpenNotes">Observação (opcional)</label>
+                  <input class="salon-input" type="text" id="cashOpenNotes" placeholder="Ex.: turno da manhã" />
+                </div>
+              </div>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cashOpenFrom">Atendendo hoje a partir de</label>
+                  <input class="salon-input" type="time" id="cashOpenFrom" required />
+                </div>
+                <div class="field">
+                  <label for="cashOpenUntil">Aberto hoje até (último horário)</label>
+                  <input class="salon-input" type="time" id="cashOpenUntil" required />
+                </div>
+              </div>
+              <p class="muted" style="font-size:0.82rem;margin:0 0 0.6rem">Os clientes só verão horários de hoje dentro desse intervalo. Os outros dias seguem o horário semanal.</p>
+              <button type="submit" class="salon-btn-primary">Abrir barbearia e caixa</button>
+            </form>
+          </div>
+
+          <div id="cashOpenBox" class="hidden">
+            <div class="today-hours-box">
+              <div>
+                <strong>Horário de hoje</strong>
+                <p class="muted" id="todayHoursText" style="margin:0.2rem 0 0;font-size:0.85rem"></p>
+              </div>
+              <form id="formTodayHours" class="today-hours-form">
+                <input class="salon-input" type="time" id="todayHoursFrom" aria-label="A partir de" required />
+                <span class="muted">até</span>
+                <input class="salon-input" type="time" id="todayHoursUntil" aria-label="Até" required />
+                <button type="submit" class="salon-btn-outline">Atualizar</button>
+              </form>
+            </div>
+            <div class="finance-stats finance-stats-grid" id="cashKpis"></div>
+
+            <h3 class="section-subtitle" style="margin-top:1.1rem">Entradas por forma de pagamento</h3>
+            <p class="muted finance-panel-intro">Atendimentos pagos desde a abertura (assinatura não entra) e entradas lançadas neste caixa. Marque uma forma, várias juntas, ou Todas para o total do dia.</p>
+            <div class="finance-pay-filter" id="cashPayFilter">
+              <span class="finance-pay-filter-label">Receita do caixa</span>
+              <div class="finance-pay-filter-btns">
+                <button type="button" class="salon-btn-outline is-active" data-cash-pay-filter="all" aria-pressed="true">Todas</button>
+                <button type="button" class="salon-btn-outline" data-cash-pay-filter="pix" aria-pressed="false">PIX</button>
+                <button type="button" class="salon-btn-outline" data-cash-pay-filter="cash" aria-pressed="false">Dinheiro</button>
+                <button type="button" class="salon-btn-outline" data-cash-pay-filter="credit" aria-pressed="false">Crédito</button>
+                <button type="button" class="salon-btn-outline" data-cash-pay-filter="debit" aria-pressed="false">Débito</button>
+              </div>
+            </div>
+            <p class="finance-pay-total" id="cashPayTotal"></p>
+            <div class="finance-pay-grid" id="cashByMethod"></div>
+
+            <hr class="divider" />
+            <h3 class="section-subtitle" id="cashMovFormTitle">Lançar entrada ou saída</h3>
+            <form id="formCashMove">
+              <div class="cash-kind-grid" id="cashKindGrid">
+                <button type="button" class="salon-btn-outline is-active" data-cash-kind="in">Entrada</button>
+                <button type="button" class="salon-btn-outline" data-cash-kind="out">Saída / despesa</button>
+                <button type="button" class="salon-btn-outline" data-cash-kind="sangria">Sangria</button>
+                <button type="button" class="salon-btn-outline" data-cash-kind="pro">Pagamento a profissional</button>
+              </div>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cashMoveCategory">Tipo do movimento</label>
+                  <select class="salon-input" id="cashMoveCategory"></select>
+                </div>
+                <div class="field hidden" id="cashMoveProField">
+                  <label for="cashMovePro">Profissional</label>
+                  <select class="salon-input" id="cashMovePro"></select>
+                </div>
+              </div>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cashMoveAmount">Valor (R$)</label>
+                  <input class="salon-input" type="number" id="cashMoveAmount" min="0.01" step="0.01" required />
+                </div>
+                <div class="field" id="cashMoveMethodField">
+                  <label for="cashMoveMethod">Forma</label>
+                  <select class="salon-input" id="cashMoveMethod"></select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="cashMoveDesc">Descrição do movimento</label>
+                <input class="salon-input" type="text" id="cashMoveDesc" placeholder="Ex.: compra de lâminas, depósito no banco, vale do João" required />
+              </div>
+              <button type="submit" class="salon-btn-primary" id="btnCashMove">Lançar entrada</button>
+            </form>
+
+            <hr class="divider" />
+            <h3 class="section-subtitle">Entradas deste caixa</h3>
+            <div class="finance-list" id="cashMovInList"></div>
+            <h3 class="section-subtitle" style="margin-top:1rem">Saídas deste caixa</h3>
+            <div class="finance-list" id="cashMovOutList"></div>
+
+            <hr class="divider" />
+            <h3 class="section-subtitle">Fechar caixa</h3>
+            <form id="formCashClose">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cashCloseCounted">Dinheiro contado na gaveta (R$)</label>
+                  <input class="salon-input" type="number" id="cashCloseCounted" min="0" step="0.01" required />
+                </div>
+                <div class="field">
+                  <label for="cashCloseNotes">Observação (opcional)</label>
+                  <input class="salon-input" type="text" id="cashCloseNotes" />
+                </div>
+              </div>
+              <p class="muted" id="cashCloseDiff" style="font-size:0.85rem;margin:0 0 0.6rem"></p>
+              <label class="payment-option" style="margin-bottom:0.6rem">
+                <input type="checkbox" id="cashCloseShop" checked /> Fechar a barbearia para novos agendamentos hoje
+              </label>
+              <button type="submit" class="salon-btn-outline">Fechar caixa</button>
+            </form>
+          </div>
+        </div>
+
+        <div id="cashTabPros" class="hidden">
+          <div class="finance-head">
+            <p class="muted finance-panel-intro" style="margin:0">Pagamentos feitos pelo caixa. O faturamento e o saldo de cada um estão em Financeiro → Profissionais.</p>
+            <div class="field finance-month-field">
+              <label for="cashProMonth">Período</label>
+              <input class="salon-input" type="month" id="cashProMonth" />
+            </div>
+          </div>
+          <div class="cash-pro-list" id="cashProList"></div>
+          <div id="cashProDetail" class="hidden">
+            <hr class="divider" />
+            <h3 class="section-subtitle" id="cashProDetailTitle">Extrato</h3>
+            <div class="finance-list" id="cashProDetailList"></div>
+          </div>
+        </div>
+
+        <div id="cashTabHistory" class="hidden">
+          <p class="muted finance-panel-intro">Caixas fechados, com o valor esperado, o contado e a diferença.</p>
+          <div class="finance-list" id="cashHistoryList"></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="tabMemberships" class="tab-panel hidden">
+      <section class="salon-card">
+        <h2 class="section-title">Assinaturas</h2>
+        <p class="muted" style="margin:0 0 0.85rem;font-size:0.9rem">
+          Cadastre planos e clientes. O nome e o telefone precisam ser os mesmos que o cliente usa no link: o agendamento já entra como assinatura.
+        </p>
+
+        <div class="admin-tabs toolbar membership-sub-tabs" id="membershipSubTabs">
+          <button type="button" class="salon-btn-outline is-active" data-membership-tab="members">Assinantes</button>
+          <button type="button" class="salon-btn-outline" data-membership-tab="plans">Planos</button>
+        </div>
+
+        <div id="membershipTabMembers" class="membership-sub-panel">
+          <div class="membership-stats" id="membershipStats"></div>
+          <div id="membershipsList" class="membership-list"></div>
+          <hr class="divider" />
+          <h3 class="section-subtitle" id="memberFormTitle">Novo assinante</h3>
+          <form id="formMembership">
+            <input type="hidden" id="memberEditId" value="" />
+            <div class="grid-2">
+              <div class="field">
+                <label for="memberName">Nome do cliente</label>
+                <input class="salon-input" type="text" id="memberName" required />
+              </div>
+              <div class="field">
+                <label for="memberPhone">Telefone / WhatsApp</label>
+                <input class="salon-input" type="tel" id="memberPhone" placeholder="(11) 99999-0000" required />
+                <p class="muted" style="margin:0.3rem 0 0;font-size:0.78rem">Usado para reconhecer o cliente quando ele agenda pelo link.</p>
+              </div>
+            </div>
+            <div class="field">
+              <label for="memberEmail">E-mail (opcional)</label>
+              <input class="salon-input" type="email" id="memberEmail" />
+            </div>
+            <div class="field">
+              <label for="memberPlan">Plano</label>
+              <select class="salon-input" id="memberPlan" required></select>
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="memberStarts">Início</label>
+                <input class="salon-input" type="date" id="memberStarts" required />
+              </div>
+              <div class="field">
+                <label for="memberExpires">Vencimento</label>
+                <input class="salon-input" type="date" id="memberExpires" required />
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="memberCutsIncluded">Cortes inclusos</label>
+                <input class="salon-input" type="number" id="memberCutsIncluded" min="1" step="1" required />
+              </div>
+              <div class="field">
+                <label for="memberCutsUsed">Cortes já usados</label>
+                <input class="salon-input" type="number" id="memberCutsUsed" min="0" step="1" value="0" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="memberNotes">Observações</label>
+              <input class="salon-input" type="text" id="memberNotes" placeholder="Ex.: paga todo dia 10" />
+            </div>
+            <div class="toolbar" style="margin-top:0.5rem">
+              <button type="submit" class="salon-btn-primary" id="btnMemberSubmit">Salvar assinante</button>
+              <button type="button" class="salon-btn-ghost hidden" id="btnMemberCancel">Cancelar</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="membershipTabPlans" class="membership-sub-panel hidden">
+          <div id="membershipPlansList" class="membership-list"></div>
+          <hr class="divider" />
+          <h3 class="section-subtitle" id="planFormTitle">Novo plano</h3>
+          <form id="formMembershipPlan">
+            <input type="hidden" id="planEditId" value="" />
+            <div class="field">
+              <label for="planName">Nome do plano</label>
+              <input class="salon-input" type="text" id="planName" placeholder="Ex.: Mensal Corte + Barba" required />
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="planType">Tipo</label>
+                <select class="salon-input" id="planType">
+                  <option value="monthly">Mensal</option>
+                  <option value="annual">Anual</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="planPrice">Preço (R$)</label>
+                <input class="salon-input" type="number" id="planPrice" min="0" step="0.01" required />
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="planCuts">Cortes inclusos</label>
+                <input class="salon-input" type="number" id="planCuts" min="1" step="1" value="4" required />
+              </div>
+              <div class="field">
+                <label for="planDays">Duração (dias)</label>
+                <input class="salon-input" type="number" id="planDays" min="1" step="1" value="30" required />
+              </div>
+            </div>
+            <div class="toolbar" style="margin-top:0.5rem">
+              <button type="submit" class="salon-btn-primary" id="btnPlanSubmit">Salvar plano</button>
+              <button type="button" class="salon-btn-ghost hidden" id="btnPlanCancel">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div id="tabProdesk" class="tab-panel hidden">
+      <section class="salon-card">
+        <div class="finance-head">
+          <div>
+            <h2 class="section-title" style="margin:0" id="proDeskTitle">Painel do profissional</h2>
+            <p class="muted" style="margin:0.35rem 0 0;font-size:0.85rem" id="proDeskSubtitle">
+              Cortes e financeiro deste profissional.
+            </p>
+          </div>
+          <div class="field finance-month-field">
+            <label for="proDeskMonth">Período financeiro</label>
+            <input class="salon-input" type="month" id="proDeskMonth" />
+          </div>
+        </div>
+        <div class="barber-quick-stats pro-desk-stats" id="proDeskStats"></div>
+        <div class="admin-tabs toolbar" id="proDeskSubTabs">
+          <button type="button" class="salon-btn-outline is-active" data-prodesk-tab="cuts">Cortes</button>
+          <button type="button" class="salon-btn-outline" data-prodesk-tab="finance">Financeiro</button>
+        </div>
+        <div id="proDeskTabCuts">
+          <p class="muted finance-panel-intro">Pendentes, confirmados e cortes deste profissional. Ao finalizar, registre PIX, dinheiro, crédito ou débito.</p>
+          <div class="appt-list" id="proDeskCutsList"></div>
+        </div>
+        <div id="proDeskTabFinance" class="hidden">
+          <h3 class="section-subtitle" style="margin-top:0">Acerto com o profissional</h3>
+          <div class="settlement-box" id="proDeskSettlement"></div>
+          <div class="finance-stats finance-stats-grid" id="proDeskFinanceKpis"></div>
+          <h3 class="section-subtitle" style="margin-top:1.1rem">Formas de pagamento</h3>
+          <div class="finance-pay-grid" id="proDeskPayBreakdown"></div>
+          <div id="proDeskFinanceList" class="finance-list" style="margin-top:1rem"></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="tabSettings" class="tab-panel hidden">
+      <section class="salon-card">
+        <h2 class="section-title">Informações da barbearia</h2>
+        <p class="muted" style="margin:0 0 1rem;font-size:0.9rem">
+          Edite nome, logo, capa, contato, redes sociais, pagamentos e horários. As alterações aparecem na página do cliente após salvar.
+        </p>
+        <form id="formSettings">
+          <div class="field">
+            <label>Nome da barbearia</label>
+            <input class="salon-input" type="text" id="setName" required />
+          </div>
+          <div class="field">
+            <label>Link personalizado</label>
+            <div class="link-preview-row">
+              <span class="muted">…/b/</span>
+              <input class="salon-input" type="text" id="setSlug" pattern="[a-z0-9-]+" required />
+            </div>
+          </div>
+          <div class="field">
+            <label>Cor de destaque</label>
+            <input class="salon-input" type="text" id="setAccent" pattern="#[0-9A-Fa-f]{6}" placeholder="#c9a227" />
+          </div>
+          <div class="field">
+            <label>Logo (URL da imagem)</label>
+            <input class="salon-input" type="url" id="setLogo" placeholder="https://..." />
+            <div class="settings-media-preview hidden" id="setLogoPreview">
+              <img id="setLogoImg" alt="Prévia do logo" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Capa (URL da imagem)</label>
+            <input class="salon-input" type="url" id="setCover" placeholder="https://..." />
+            <div class="settings-media-preview settings-media-preview-cover hidden" id="setCoverPreview">
+              <img id="setCoverImg" alt="Prévia da capa" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Fotos de propaganda (URLs, uma por linha)</label>
+            <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">Aparecem na página do cliente em «Detalhes do estabelecimento». Cole links de imagens ou edite as existentes.</p>
+            <textarea class="salon-input" id="setPhotos" rows="4" placeholder="https://..."></textarea>
+            <div id="setPhotosPreview" class="photo-gallery settings-photos-preview hidden"></div>
+          </div>
+          <h3 class="section-subtitle">Localização</h3>
+          <div class="field">
+            <label>Endereço (rua e número)</label>
+            <input class="salon-input" type="text" id="setAddress" placeholder="Av. Exemplo, 100" />
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>Cidade</label>
+              <input class="salon-input" type="text" id="setCity" />
+            </div>
+            <div class="field">
+              <label>Estado (UF)</label>
+              <input class="salon-input" type="text" id="setState" maxlength="2" placeholder="SP" />
+            </div>
+          </div>
+          <div class="field">
+            <label>CEP</label>
+            <input class="salon-input" type="text" id="setZip" placeholder="00000-000" />
+          </div>
+
+          <h3 class="section-subtitle">Contato e redes</h3>
+          <div class="grid-2">
+            <div class="field">
+              <label>Celular / WhatsApp</label>
+              <input class="salon-input" type="text" id="setPhone" placeholder="(11) 99999-0000" />
+            </div>
+            <div class="field">
+              <label>Telefone fixo (opcional)</label>
+              <input class="salon-input" type="text" id="setPhone2" placeholder="(11) 3333-0000" />
+            </div>
+          </div>
+          <div class="field">
+            <label>WhatsApp link (só números)</label>
+            <input class="salon-input" type="text" id="setWhatsapp" placeholder="5511999990000" />
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>Instagram (@ ou link)</label>
+              <input class="salon-input" type="text" id="setInstagram" placeholder="@sua_barbearia" />
+            </div>
+            <div class="field">
+              <label>Facebook (@ ou link)</label>
+              <input class="salon-input" type="text" id="setFacebook" placeholder="@suabarbearia ou facebook.com/pagina" />
+            </div>
+          </div>
+
+          <h3 class="section-subtitle">Formas de pagamento</h3>
+          <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">Marque as opções aceitas na barbearia.</p>
+          <div class="payment-options" id="setPaymentOptions">
+            <label class="payment-option"><input type="checkbox" value="Dinheiro" /> Dinheiro</label>
+            <label class="payment-option"><input type="checkbox" value="PIX" /> PIX</label>
+            <label class="payment-option"><input type="checkbox" value="Cartão de Crédito" /> Cartão de Crédito</label>
+            <label class="payment-option"><input type="checkbox" value="Cartão de Débito" /> Cartão de Débito</label>
+          </div>
+
+          <h3 class="section-subtitle">Comodidades e acessibilidade</h3>
+          <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">Marque o que sua barbearia oferece. O cliente verá na página pública.</p>
+          <div class="amenity-options">
+            <label class="payment-option"><input type="checkbox" id="setHasWifi" /> Wi-Fi para clientes</label>
+            <label class="payment-option"><input type="checkbox" id="setHasParking" /> Estacionamento</label>
+            <label class="payment-option"><input type="checkbox" id="setHasKids" /> Corte de criança</label>
+            <label class="payment-option"><input type="checkbox" id="setHasWheelchair" /> Acesso para cadeirantes</label>
+          </div>
+          <div class="field" style="margin-top:0.75rem">
+            <label>Detalhes do Wi-Fi (opcional)</label>
+            <input class="salon-input" type="text" id="setWifiInfo" placeholder="Ex.: Rede Barbearia_Guest — senha na recepção" />
+          </div>
+          <div class="field">
+            <label>Detalhes do estacionamento (opcional)</label>
+            <input class="salon-input" type="text" id="setParkingInfo" placeholder="Ex.: Estacionamento gratuito na rua" />
+          </div>
+
+          <h3 class="section-subtitle">Horário de atendimento</h3>
+          <p class="muted" style="margin:0 0 0.75rem;font-size:0.85rem">
+            Toque em um dia para configurar horários e intervalo de almoço.
+          </p>
+          <div id="weeklyHoursGrid" class="weekly-schedule"></div>
+          <button type="submit" class="salon-btn-primary" style="width:100%;margin-top:1rem">Salvar informações</button>
+        </form>
+      </section>
+    </div>
+
+    </div>
+
+    <!-- Painel do profissional (login criado pelo dono) -->
+    <div id="proApp" class="hidden">
+      <header class="public-header salon-card barber-dashboard-header">
+        <div class="public-brand-row barber-brand-row">
+          <img id="proAppAvatar" class="public-logo hidden" alt="" />
+          <div id="proAppAvatarPh" class="public-logo public-logo-ph">P</div>
+          <div class="barber-brand-text">
+            <h1 class="public-title" id="proAppName">Profissional</h1>
+            <p class="muted" id="proAppSalon">Barbearia</p>
+          </div>
+          <button type="button" class="salon-btn-ghost barber-logout-btn" id="btnProLogout">Sair</button>
+        </div>
+        <div class="barber-quick-stats">
+          <div class="barber-stat-pill">
+            <span class="barber-stat-num" id="proStatPending">0</span>
+            <small>Aguardando confirmação</small>
+          </div>
+          <div class="barber-stat-pill barber-stat-pill-accent">
+            <span class="barber-stat-num" id="proStatToday">0</span>
+            <small>Meus confirmados hoje</small>
+          </div>
+          <div class="barber-stat-pill">
+            <span class="barber-stat-num" id="proStatDone">0</span>
+            <small>Meus cortes no mês</small>
+          </div>
+        </div>
+      </header>
+
+      <div class="admin-tabs toolbar barber-main-tabs" id="proAppTabs">
+        <button type="button" class="salon-btn-outline is-active" data-pro-tab="agenda">Meus Agendamentos</button>
+        <button type="button" class="salon-btn-outline" data-pro-tab="finance">Meu Financeiro</button>
+        <button type="button" class="salon-btn-outline" data-pro-tab="report">Meus Serviços/Relatório</button>
+      </div>
+
+      <section class="salon-card pro-app-panel" id="proPanelAgenda">
+        <h2 class="section-title">Meus Agendamentos</h2>
+        <div class="toolbar" id="proAgendaFilter" style="margin-bottom:0.75rem">
+          <button type="button" class="salon-btn-outline is-active" data-pro-range="upcoming">Próximos</button>
+          <button type="button" class="salon-btn-outline" data-pro-range="today">Hoje</button>
+          <button type="button" class="salon-btn-outline" data-pro-range="done">Concluídos</button>
+        </div>
+        <div class="appt-list" id="proAgendaList"></div>
+      </section>
+
+      <section class="salon-card pro-app-panel hidden" id="proPanelFinance">
+        <div class="finance-head">
+          <div>
+            <h2 class="section-title" style="margin:0">Meu Financeiro</h2>
+            <p class="muted" style="margin:0.35rem 0 0;font-size:0.85rem">Seu faturamento no mês ou no dia. Marque uma forma de pagamento, várias ao mesmo tempo, ou Todas para o total.</p>
+          </div>
+          <div class="finance-head-filters">
+            <div class="field finance-month-field">
+              <label for="proFinanceMonth">Mês</label>
+              <input class="salon-input" type="month" id="proFinanceMonth" />
+            </div>
+            <div class="field finance-month-field">
+              <label for="proFinanceDay">Dia</label>
+              <input class="salon-input" type="date" id="proFinanceDay" />
+            </div>
+            <button type="button" class="salon-btn-ghost" id="btnProFinanceClearDay">Mês inteiro</button>
+          </div>
+        </div>
+        <div class="finance-pay-filter" id="proFinancePayFilter">
+          <span class="finance-pay-filter-label">Receita por forma de pagamento</span>
+          <div class="finance-pay-filter-btns">
+            <button type="button" class="salon-btn-outline is-active" data-pro-pay-filter="all" aria-pressed="true">Todas</button>
+            <button type="button" class="salon-btn-outline" data-pro-pay-filter="pix" aria-pressed="false">PIX</button>
+            <button type="button" class="salon-btn-outline" data-pro-pay-filter="cash" aria-pressed="false">Dinheiro</button>
+            <button type="button" class="salon-btn-outline" data-pro-pay-filter="credit" aria-pressed="false">Crédito</button>
+            <button type="button" class="salon-btn-outline" data-pro-pay-filter="debit" aria-pressed="false">Débito</button>
+          </div>
+        </div>
+        <p class="finance-pay-total" id="proFinancePayTotal"></p>
+        <div class="finance-stats finance-stats-grid" id="proFinanceKpis"></div>
+        <h3 class="section-subtitle" style="margin-top:1.1rem">Por forma de pagamento</h3>
+        <div class="finance-pay-grid" id="proFinancePay"></div>
+        <h3 class="section-subtitle" style="margin-top:1.1rem">Extrato</h3>
+        <div class="finance-list" id="proFinanceList"></div>
+        <h3 class="section-subtitle" style="margin-top:1.1rem">Pagamentos recebidos do caixa</h3>
+        <div class="finance-list" id="proFinancePaid"></div>
+      </section>
+
+      <section class="salon-card pro-app-panel hidden" id="proPanelReport">
+        <div class="finance-head">
+          <div>
+            <h2 class="section-title" style="margin:0">Meus Serviços/Relatório</h2>
+            <p class="muted" style="margin:0.35rem 0 0;font-size:0.85rem">Serviços que você mais realizou no período.</p>
+          </div>
+          <div class="field finance-month-field">
+            <label for="proReportMonth">Período</label>
+            <input class="salon-input" type="month" id="proReportMonth" />
+          </div>
+        </div>
+        <div class="finance-service-rank" id="proReportRank"></div>
+      </section>
+    </div>
+
+    <div id="payMethodModal" class="pay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="payMethodTitle">
+      <div class="pay-modal-card salon-card">
+        <h3 class="section-subtitle" id="payMethodTitle">Forma de pagamento</h3>
+        <p class="muted" id="payMethodHint">Como o cliente pagou este atendimento?</p>
+        <div class="pay-method-grid">
+          <button type="button" class="salon-btn-outline pay-method-btn" data-pay="pix">PIX</button>
+          <button type="button" class="salon-btn-outline pay-method-btn" data-pay="cash">Dinheiro</button>
+          <button type="button" class="salon-btn-outline pay-method-btn" data-pay="credit">Crédito</button>
+          <button type="button" class="salon-btn-outline pay-method-btn" data-pay="debit">Débito</button>
+        </div>
+        <button type="button" class="salon-btn-ghost" id="payMethodCancel" style="margin-top:0.75rem">Cancelar</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="pwaInstallBanner" class="pwa-install-banner hidden" role="dialog" aria-label="Instalar aplicativo">
+    <div class="pwa-install-inner">
+      <div class="pwa-install-icon" aria-hidden="true">📲</div>
+      <div class="pwa-install-body">
+        <strong id="pwaInstallTitle">Instale o app</strong>
+        <p id="pwaInstallText" class="muted">Adicione à tela inicial para acesso rápido.</p>
+      </div>
+      <div class="pwa-install-actions">
+        <button type="button" class="salon-btn-primary" id="pwaInstallBtn">Instalar</button>
+        <button type="button" class="salon-btn-ghost pwa-install-dismiss" id="pwaInstallDismiss" aria-label="Fechar">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <script>window.SALAO_PAGE = "barbeiro"; window.SALAO_PWA_APP = "admin";</script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="js/salao-core.js?v=7"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/salao-firebase.js?v=10"></script>
+  <script src="js/salao-backend.js?v=9"></script>
+  <script src="js/install-pwa.js?v=4"></script>
+  <script src="js/app.js?v=39"></script>
+</body>
+</html>
