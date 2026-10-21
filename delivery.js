@@ -520,20 +520,15 @@ function getDeliveryProductRootCategory(product) {
 }
 
 function getDeliveryFilterTabs(products) {
-  const fromTree = getDeliveryCategoryChildren("").map((node) => ({
-    value: node.id,
-    label: node.name
-  }));
-  if (fromTree.length) return fromTree;
-
+  if (typeof DeliveryLogic !== "undefined" && typeof DeliveryLogic.menuCategoryTabs === "function") {
+    return DeliveryLogic.menuCategoryTabs(getDeliveryCategoryNodes(), products);
+  }
   const map = new Map();
   products.forEach((product) => {
-    const root = getDeliveryProductRootCategory(product);
-    if (!map.has(root.id)) map.set(root.id, root.name);
+    const label = getDeliveryProductCategoryLabel(product);
+    if (!map.has(label)) map.set(label, { value: getDeliveryProductCategoryId(product) || label, label });
   });
-  return [...map.entries()]
-    .map(([value, label]) => ({ value, label }))
-    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  return [...map.values()];
 }
 
 function productMatchesSelectedCategory(product) {
@@ -544,6 +539,9 @@ function productMatchesSelectedCategory(product) {
     if (productId === selected) return true;
     if (getDeliveryCategoryDescendantIds(selected).has(productId)) return true;
   }
+  const label = getDeliveryProductCategoryLabel(product);
+  const labelKey = `name:${normalizeSearch(label)}`;
+  if (selected === labelKey || normalizeSearch(label) === normalizeSearch(selected)) return true;
   const root = getDeliveryProductRootCategory(product);
   if (root.id === selected) return true;
   return normalizeSearch(root.name) === normalizeSearch(selected)
@@ -611,7 +609,11 @@ function groupProductsByCategory(products) {
     if (!groups.has(label)) groups.set(label, []);
     groups.get(label).push(product);
   });
-  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+  const order = new Map(getDeliveryFilterTabs(products).map((tab, index) => [tab.label, index]));
+  return [...groups.entries()].sort((a, b) =>
+    (order.get(a[0]) ?? 9999) - (order.get(b[0]) ?? 9999)
+    || a[0].localeCompare(b[0], "pt-BR")
+  );
 }
 
 function setOrderTrackLayout(active) {

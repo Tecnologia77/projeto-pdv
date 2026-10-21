@@ -80,4 +80,20 @@ const legacy = logic.comboChoicesFromProduct({
 assert.strictEqual(legacy.length, 1);
 assert.strictEqual(legacy[0].options[0].qty, 50);
 
+const tabs = logic.menuCategoryTabs(
+  [
+    { id: "dest", name: "Destilados", parentId: "", order: 1 },
+    { id: "whisky", name: "Whisky", parentId: "dest", order: 0 },
+    { id: "combos", name: "Combos", parentId: "", order: 2 }
+  ],
+  [
+    { name: "Jack", categoryId: "whisky", category: "Destilados › Whisky" },
+    { name: "Combo Red Bull", categoryId: "combos", category: "Combos" },
+    { name: "Combo novo", category: "Especiais" }
+  ]
+);
+assert.deepStrictEqual(tabs.map((tab) => tab.label), ["Destilados › Whisky", "Combos", "Especiais"]);
+assert.strictEqual(tabs[1].value, "combos");
+assert.strictEqual(tabs[2].value, "name:especiais");
+
 console.log("delivery-logic tests ok");

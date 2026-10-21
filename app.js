@@ -7711,6 +7711,11 @@ function setupProducts() {
       renderProducts();
       renderStock();
       renderPDVSearch("");
+      try {
+        await syncStorePublic(state.company);
+      } catch (err) {
+        console.warn("Publicar cardápio:", err);
+      }
     } catch (error) { alert(`Erro ao salvar produto: ${error.message}`); }
   });
   document.getElementById("btnClearProduct").addEventListener("click", openProductFormForNew);

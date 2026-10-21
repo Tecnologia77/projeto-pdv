@@ -110,6 +110,42 @@
     return normalizeComboGroups(product?.comboGroups);
   }
 
+  function menuCategoryTabs(nodes, products) {
+    const list = Array.isArray(nodes) ? nodes : [];
+    const byId = new Map(list.filter((node) => node && node.id && node.name).map((node) => [String(node.id), node]));
+    const map = new Map();
+    (Array.isArray(products) ? products : []).forEach((product) => {
+      const categoryId = String(product?.categoryId || "").trim();
+      let label = "";
+      if (categoryId && byId.has(categoryId)) {
+        const parts = [];
+        let current = byId.get(categoryId);
+        let guard = 0;
+        while (current && guard < 20) {
+          parts.unshift(current.name);
+          current = current.parentId ? byId.get(String(current.parentId)) : null;
+          guard += 1;
+        }
+        label = parts.join(" › ");
+      }
+      if (!label) label = String(product?.category || "").trim() || "Outros";
+      const key = label
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+      const value = categoryId && byId.has(categoryId) ? categoryId : `name:${key}`;
+      const current = map.get(key);
+      if (!current) map.set(key, { value, label });
+      else if (byId.has(value)) current.value = value;
+    });
+    const order = new Map(list.map((node, index) => [String(node.id), Number(node.order ?? index)]));
+    return [...map.values()].sort((a, b) =>
+      (order.get(a.value) ?? 9999) - (order.get(b.value) ?? 9999)
+      || a.label.localeCompare(b.label, "pt-BR")
+    );
+  }
+
   function comboUnitPrice(basePrice, selections) {
     const extra = (Array.isArray(selections) ? selections : []).reduce(
       (sum, sel) => sum + Math.max(0, Number(sel?.extraPrice || 0)),
@@ -132,6 +168,7 @@
     calculateDeliveryFee,
     normalizeComboGroups,
     comboChoicesFromProduct,
+    menuCategoryTabs,
     comboUnitPrice,
     comboSelectionKey
   };
