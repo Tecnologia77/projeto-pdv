@@ -449,8 +449,7 @@ body {
   margin-bottom: 12px;
 }
 
-.delivery-zone-box label,
-.combo-choice {
+.delivery-zone-box label {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -467,33 +466,124 @@ body {
   background: #fff;
 }
 
-.combo-choice {
-  margin-bottom: 14px;
-  font-weight: 500;
+.product-card--combo {
+  cursor: pointer;
 }
 
-.combo-choice strong {
-  font-size: 0.95rem;
+.combo-card-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.combo-card-choices li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.combo-card-choices strong {
+  color: var(--text, inherit);
+  font-size: 0.75rem;
+}
+
+.combo-card-choices span {
+  color: var(--muted, #64748b);
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.combo-choice {
+  margin: 0 0 16px;
+}
+
+.combo-choice h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.combo-choice-kicker,
+.combo-fixed-title {
+  margin: 0 0 4px;
+  color: var(--muted, #64748b);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.combo-fixed {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
 }
 
 .combo-fixed-line {
-  margin: 0 0 8px;
-  color: var(--muted, #64748b);
-  font-size: 13px;
+  margin: 0 0 4px;
+  color: var(--text, inherit);
+  font-size: 0.9rem;
+}
+
+.combo-fixed-line:last-child {
+  margin-bottom: 0;
+}
+
+.combo-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .combo-option {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-weight: 500;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.combo-option.is-selected {
+  border-color: var(--accent, #2563eb);
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 1px var(--accent, #2563eb);
+}
+
+.combo-option.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.modal-card .combo-option input[type="radio"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent, #2563eb);
+}
+
+.combo-option-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.combo-option-name {
+  line-height: 1.3;
 }
 
 .combo-option small {
-  margin-left: auto;
   color: var(--muted, #667);
+  font-weight: 500;
 }
 
 .combo-modal-hint,
