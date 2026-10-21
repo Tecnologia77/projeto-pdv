@@ -8,7 +8,8 @@
       "firestore.rules",
       "storage.rules",
       "README.md",
-      "delivery-logic.test.js"
+      "delivery-logic.test.js",
+      "agenda-update/**"
     ]
   },
   "firestore": {
