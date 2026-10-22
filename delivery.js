@@ -279,14 +279,10 @@ function getCartTotals() {
   return { subtotal, fee, total: subtotal + fee, minOrder, pricing };
 }
 
-function findMenuProduct(productId, products = deliveryState.products) {
-  return products.find((item) => item.id === productId) || null;
-}
-
 function getComboGroups(product) {
   if (typeof DeliveryLogic === "undefined") return [];
   if (typeof DeliveryLogic.comboChoicesFromProduct === "function") {
-    return DeliveryLogic.comboChoicesFromProduct(product, (id) => findMenuProduct(id));
+    return DeliveryLogic.comboChoicesFromProduct(product);
   }
   return DeliveryLogic.normalizeComboGroups(product?.comboGroups);
 }
@@ -367,16 +363,6 @@ function getDoseRecipeComponentPerDose(comp, ingredient) {
 }
 
 function getNormalizedDoseRecipe(product, products) {
-  if (typeof DeliveryLogic !== "undefined" && typeof DeliveryLogic.comboStockParts === "function") {
-    return DeliveryLogic.comboStockParts(product, (id) => findMenuProduct(id, products)).fixed.map((row) => ({
-      productId: row.productId,
-      ml: row.ml,
-      qty: row.qty,
-      choiceId: "",
-      choiceName: "",
-      options: []
-    }));
-  }
   return (product.doseRecipe || [])
     .map((row) => {
       const productId = String(row?.productId || "").trim();
@@ -853,8 +839,7 @@ function buildComboSelections(product) {
       name: chosen.name,
       extraPrice: Number(option.extraPrice || 0),
       deductQty: optionDeductQty(option, chosen),
-      replacesProductId: group.replacesProductId || "",
-      replacesProductIds: group.replacesProductIds || []
+      replacesProductId: group.replacesProductId || ""
     });
   }
   return selections;
@@ -1244,8 +1229,7 @@ async function submitOrder(e) {
       name: sel.name,
       extraPrice: Number(sel.extraPrice || 0),
       deductQty: Number(sel.deductQty || 0),
-      replacesProductId: sel.replacesProductId || "",
-      replacesProductIds: Array.isArray(sel.replacesProductIds) ? sel.replacesProductIds : []
+      replacesProductId: sel.replacesProductId || ""
     }))
   }));
 

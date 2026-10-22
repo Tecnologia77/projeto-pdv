@@ -1313,10 +1313,6 @@ function getDoseRecipe(product) {
       const qty = Math.max(0, Math.floor(Number(row?.qty || 0)));
       const choices = normalizeInsumoOptions(row);
       const ingredient = state.products.find((p) => p.id === productId);
-      const serving = typeof DeliveryLogic !== "undefined" && typeof DeliveryLogic.componentServingAmount === "function"
-        ? DeliveryLogic.componentServingAmount(row, ingredient)
-        : null;
-      if (serving) return { productId, ml: serving.ml, qty: serving.qty, ...choices };
       if (ingredient) {
         if (isMlStockProduct(ingredient) && ml > 0) return { productId, ml, qty: 0, ...choices };
         if (isUnitStockProduct(ingredient)) return { productId, ml: 0, qty: qty > 0 ? qty : 1, ...choices };
@@ -1366,21 +1362,8 @@ function resolveStockDeductionsForLineItem(product, qty, selections) {
   if (!amount || !product) return map;
   if (isDoseProduct(product)) {
     const replaced = new Set(
-      (selections || []).flatMap((sel) => [
-        String(sel?.replacesProductId || "").trim(),
-        ...((Array.isArray(sel?.replacesProductIds) ? sel.replacesProductIds : []).map((id) => String(id || "").trim()))
-      ]).filter(Boolean)
+      (selections || []).map((sel) => String(sel?.replacesProductId || "").trim()).filter(Boolean)
     );
-    if (typeof DeliveryLogic !== "undefined" && typeof DeliveryLogic.comboChoicesFromProduct === "function") {
-      DeliveryLogic.comboChoicesFromProduct(product, (id) => state.products.find((item) => item.id === id))
-        .forEach((group) => {
-          const chosen = (selections || []).some((sel) => sel.groupId === group.id || (group.options || []).some((opt) => opt.productId === sel.productId));
-          if (!chosen) return;
-          (group.replacesProductIds || []).forEach((id) => replaced.add(id));
-          (group.options || []).forEach((opt) => replaced.add(opt.productId));
-          if (group.replacesProductId) replaced.add(group.replacesProductId);
-        });
-    }
     getDoseRecipe(product).forEach((comp) => {
       if (replaced.has(comp.productId)) return;
       const ingredient = state.products.find((p) => p.id === comp.productId);
@@ -1433,33 +1416,16 @@ function getMaxCartQty(productId, priceType = "retail", cart = state.cart) {
 
   if (isDoseProduct(product)) {
     const recipe = getDoseRecipe(product);
-    const groups = typeof DeliveryLogic !== "undefined" && typeof DeliveryLogic.comboChoicesFromProduct === "function"
-      ? DeliveryLogic.comboChoicesFromProduct(product, (id) => state.products.find((item) => item.id === id))
-      : [];
-    const choiceIds = new Set();
-    groups.forEach((group) => {
-      (group.replacesProductIds || []).forEach((id) => choiceIds.add(id));
-      (group.options || []).forEach((opt) => choiceIds.add(opt.productId));
-      if (group.replacesProductId) choiceIds.add(group.replacesProductId);
-    });
-    const fixed = recipe.filter((comp) => !choiceIds.has(comp.productId) && !(comp.options || []).length);
-    if (!fixed.length && !groups.length) return 0;
+    if (!recipe.length) return 0;
     const usage = getCartIngredientUsage(cartWithoutLine);
     let maxDoses = Infinity;
-    for (const comp of fixed) {
+    for (const comp of recipe) {
       const ingredient = state.products.find((p) => p.id === comp.productId);
       const perDose = getDoseRecipeComponentPerDose(comp, ingredient);
       if (!ingredient || perDose <= 0) return 0;
       const available = Number(ingredient.qty || 0) - (usage.get(comp.productId) || 0);
       maxDoses = Math.min(maxDoses, Math.floor(available / perDose));
     }
-    const choicesAvailable = groups.every((group) => group.options.some((opt) => {
-      const ingredient = state.products.find((p) => p.id === opt.productId);
-      const per = Math.max(1, Number(opt.qty || 1));
-      return ingredient && Number(ingredient.qty || 0) >= per;
-    }));
-    if (!choicesAvailable) return 0;
-    if (!fixed.length) return 99;
     return Math.max(0, maxDoses === Infinity ? 0 : maxDoses);
   }
 
@@ -7248,9 +7214,8 @@ function renderDoseRecipeAmountField(row) {
   if (doseRecipeRowUsesMl(row.productId)) {
     return `<input type="number" class="dose-recipe-ml" min="1" step="1" value="${row.ml > 0 ? row.ml : ""}" placeholder="ml" />`;
   }
-  const rawQty = row.qty > 0 ? row.qty : 1;
-  const qty = rawQty > 30 ? 1 : rawQty;
-  return `<input type="number" class="dose-recipe-qty" min="1" max="30" step="1" value="${qty}" placeholder="un." />`;
+  const qty = row.qty > 0 ? row.qty : 1;
+  return `<input type="number" class="dose-recipe-qty" min="1" step="1" value="${qty}" placeholder="un." />`;
 }
 
 function getInsumoOptionProducts(insumoId) {
@@ -7317,12 +7282,6 @@ function renderDoseRecipeList(recipe = []) {
     </div>`;
   }).join("");
 
-  list.querySelectorAll(".dose-recipe-qty, .dose-recipe-ml").forEach((input) => {
-    input.addEventListener("wheel", (event) => {
-      event.preventDefault();
-      input.blur();
-    }, { passive: false });
-  });
   list.querySelectorAll(".dose-recipe-product").forEach((sel) => {
     sel.addEventListener("change", () => {
       renderDoseRecipeList(readDoseRecipeFromDOM(true));
@@ -7373,7 +7332,6 @@ function readDoseRecipeFromDOM(keepIncomplete = false) {
       ml = Math.max(0, Number(row.querySelector(".dose-recipe-ml")?.value || 0));
     } else if (isUnitStockProduct(product)) {
       qty = Math.max(1, Math.floor(Number(row.querySelector(".dose-recipe-qty")?.value || 1)));
-      if (qty > 30) qty = 1;
     } else {
       ml = Math.max(0, Number(row.querySelector(".dose-recipe-ml")?.value || 0));
       qty = Math.max(0, Math.floor(Number(row.querySelector(".dose-recipe-qty")?.value || 0)));
