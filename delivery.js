@@ -652,9 +652,22 @@ function comboChoiceInfo(group) {
   };
 }
 
+function findComboOptionProduct(optionOrId) {
+  const productId = typeof optionOrId === "string" ? optionOrId : optionOrId?.productId;
+  return deliveryState.products.find((item) => item.id === productId) || null;
+}
+
 function comboOptionLabel(option) {
-  const chosen = deliveryState.products.find((item) => item.id === option.productId);
-  return chosen?.name || "";
+  return findComboOptionProduct(option)?.name || "";
+}
+
+function comboItemPhotoHtml(product, size) {
+  const sizeClass = size === "sm" ? " combo-item-photo--sm" : "";
+  const photo = String(product?.photo || "").trim();
+  if (!photo) {
+    return `<span class="combo-item-photo${sizeClass} combo-item-photo--empty" aria-hidden="true">📦</span>`;
+  }
+  return `<span class="combo-item-photo${sizeClass}"><img src="${escapeHtml(photo)}" alt="" loading="lazy" onerror="var box=this.parentElement;this.remove();if(box){box.classList.add('combo-item-photo--empty');box.textContent='📦';}" /></span>`;
 }
 
 function comboChoiceButtonLabel(product) {
@@ -669,13 +682,38 @@ function comboChoiceButtonLabel(product) {
 function renderComboChoicePreview(product) {
   return getComboGroups(product).map((group) => {
     const info = comboChoiceInfo(group);
-    const names = group.options.map(comboOptionLabel).filter(Boolean);
-    const shown = names.slice(0, 3).join(", ");
-    const extra = names.length > 3 ? ` e mais ${names.length - 3}` : "";
+    const options = group.options.map((opt) => {
+      const chosen = findComboOptionProduct(opt);
+      const label = chosen?.name || "";
+      return label ? { chosen, label } : null;
+    }).filter(Boolean);
+    const shown = options.slice(0, 3);
+    const extra = options.length - shown.length;
     const title = info.insumoName ? `${info.insumoName} · ${info.choiceName}` : info.choiceName;
-    const detail = shown ? `${shown}${extra}` : "Toque para ver as opções";
-    return `<li><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></li>`;
+    if (!shown.length) {
+      return `<li><strong>${escapeHtml(title)}</strong><span class="combo-choice-more">Toque para ver as opções</span></li>`;
+    }
+    const items = shown.map(({ chosen, label }) =>
+      `<span class="combo-choice-item">${comboItemPhotoHtml(chosen, "sm")}<span>${escapeHtml(label)}</span></span>`
+    ).join("");
+    const more = extra > 0 ? `<span class="combo-choice-more">e mais ${extra}</span>` : "";
+    return `<li><strong>${escapeHtml(title)}</strong><span class="combo-choice-items">${items}${more}</span></li>`;
   }).join("");
+}
+
+function renderFixedComboItemsPreview(product) {
+  const rows = getNormalizedDoseRecipe(product, deliveryState.products)
+    .filter((row) => !(row.options || []).length);
+  const shown = rows.slice(0, 3);
+  if (!shown.length) return "";
+  const extra = rows.length - shown.length;
+  const items = shown.map((row) => {
+    const ing = findComboOptionProduct(row.productId);
+    const label = ing?.name || "Insumo";
+    return `<span class="combo-choice-item">${comboItemPhotoHtml(ing, "sm")}<span>${escapeHtml(label)}</span></span>`;
+  }).join("");
+  const more = extra > 0 ? `<span class="combo-choice-more">e mais ${extra}</span>` : "";
+  return `<ul class="combo-card-choices"><li><strong>Já incluso</strong><span class="combo-choice-items">${items}${more}</span></li></ul>`;
 }
 
 function renderProductCard(p) {
@@ -687,9 +725,11 @@ function renderProductCard(p) {
     : `<div class="product-photo-placeholder" aria-hidden="true">📦</div>`;
   const choicePreview = hasChoices
     ? `<div class="combo-badge">${qty > 0 ? `${qty} no pedido · ` : ""}Toque para escolher</div>
-       <ul class="combo-card-choices">${renderComboChoicePreview(p)}</ul>`
+       <ul class="combo-card-choices">${renderComboChoicePreview(p)}</ul>
+       ${renderFixedComboItemsPreview(p)}`
     : opens
-      ? `<div class="combo-badge">${qty > 0 ? `${qty} no pedido · ` : ""}Toque para abrir o combo</div>`
+      ? `<div class="combo-badge">${qty > 0 ? `${qty} no pedido · ` : ""}Toque para abrir o combo</div>
+         ${renderFixedComboItemsPreview(p)}`
       : "";
   return `
     <article class="product-card${opens ? " product-card--combo" : ""}" data-id="${escapeHtml(p.id)}"${opens ? ` data-action="choose" data-product-id="${escapeHtml(p.id)}"` : ""}>
@@ -884,7 +924,7 @@ function renderComboModal(product) {
     .map((row) => {
       const ing = deliveryState.products.find((item) => item.id === row.productId);
       const amount = ing?.stockMode === "ml" ? `${row.ml} ml` : `${row.qty} un.`;
-      return `<p class="combo-fixed-line">${escapeHtml(ing?.name || "Insumo")} · ${amount}</p>`;
+      return `<p class="combo-fixed-line">${comboItemPhotoHtml(ing)}<span>${escapeHtml(ing?.name || "Insumo")} · ${amount}</span></p>`;
     }).join("");
   const fixedBlock = fixedLines
     ? `<div class="combo-fixed"><p class="combo-fixed-title">Já incluso neste combo</p>${fixedLines}</div>`
@@ -892,13 +932,15 @@ function renderComboModal(product) {
   box.innerHTML = fixedBlock + groups.map((group) => {
     const info = comboChoiceInfo(group);
     const options = group.options.map((opt) => {
-      const label = comboOptionLabel(opt);
+      const chosen = findComboOptionProduct(opt);
+      const label = chosen?.name || "";
       if (!label) return "";
       const remaining = getOptionRemaining(opt);
       const extra = Number(opt.extraPrice || 0);
       const disabled = remaining <= 0 ? "disabled" : "";
       return `<label class="combo-option${remaining <= 0 ? " is-disabled" : ""}">
         <input type="radio" name="combo-${escapeHtml(group.id)}" value="${escapeHtml(opt.productId)}" ${disabled} />
+        ${comboItemPhotoHtml(chosen)}
         <span class="combo-option-copy">
           <span class="combo-option-name">${escapeHtml(label)}</span>
           <small>${remaining <= 0 ? "sem estoque" : extra > 0 ? `+ ${money(extra)}` : "incluso"}</small>
