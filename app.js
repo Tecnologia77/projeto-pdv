@@ -1287,6 +1287,22 @@ function getBottleVolumeMl(product) {
   return Math.max(0, Number(product?.bottleVolumeMl || 0));
 }
 
+function normalizeInsumoOptions(row) {
+  const options = (Array.isArray(row?.options) ? row.options : []).map((opt) => {
+    const productId = String(opt?.productId || "").trim();
+    if (!productId) return null;
+    return {
+      productId,
+      extraPrice: Math.max(0, Number(opt?.extraPrice || 0))
+    };
+  }).filter(Boolean);
+  return {
+    choiceId: String(row?.choiceId || "").trim(),
+    choiceName: String(row?.choiceName || "").trim(),
+    options
+  };
+}
+
 function getDoseRecipe(product) {
   if (!isDoseProduct(product)) return [];
   return (product?.doseRecipe || [])
@@ -1295,13 +1311,14 @@ function getDoseRecipe(product) {
       if (!productId) return null;
       const ml = Math.max(0, Number(row?.ml || 0));
       const qty = Math.max(0, Math.floor(Number(row?.qty || 0)));
+      const choices = normalizeInsumoOptions(row);
       const ingredient = state.products.find((p) => p.id === productId);
       if (ingredient) {
-        if (isMlStockProduct(ingredient) && ml > 0) return { productId, ml, qty: 0 };
-        if (isUnitStockProduct(ingredient)) return { productId, ml: 0, qty: qty > 0 ? qty : 1 };
+        if (isMlStockProduct(ingredient) && ml > 0) return { productId, ml, qty: 0, ...choices };
+        if (isUnitStockProduct(ingredient)) return { productId, ml: 0, qty: qty > 0 ? qty : 1, ...choices };
       }
-      if (ml > 0) return { productId, ml, qty: 0 };
-      if (qty > 0) return { productId, ml: 0, qty };
+      if (ml > 0) return { productId, ml, qty: 0, ...choices };
+      if (qty > 0) return { productId, ml: 0, qty, ...choices };
       return null;
     })
     .filter(Boolean);
@@ -1339,12 +1356,16 @@ function getCartIngredientUsage(cart, excludeLine = null) {
   return usage;
 }
 
-function resolveStockDeductionsForLineItem(product, qty) {
+function resolveStockDeductionsForLineItem(product, qty, selections) {
   const map = new Map();
   const amount = Math.max(0, Number(qty || 0));
   if (!amount || !product) return map;
   if (isDoseProduct(product)) {
+    const replaced = new Set(
+      (selections || []).map((sel) => String(sel?.replacesProductId || "").trim()).filter(Boolean)
+    );
     getDoseRecipe(product).forEach((comp) => {
+      if (replaced.has(comp.productId)) return;
       const ingredient = state.products.find((p) => p.id === comp.productId);
       const perDose = getDoseRecipeComponentPerDose(comp, ingredient);
       if (perDose > 0) {
@@ -1372,7 +1393,7 @@ function resolveStockDeductionsFromSaleItems(items) {
   (items || []).forEach((item) => {
     const product = state.products.find((p) => p.id === item.productId);
     if (product) {
-      resolveStockDeductionsForLineItem(product, item.qty).forEach((amt, productId) => {
+      resolveStockDeductionsForLineItem(product, item.qty, item.selections).forEach((amt, productId) => {
         map.set(productId, (map.get(productId) || 0) + amt);
       });
     }
@@ -7197,63 +7218,125 @@ function renderDoseRecipeAmountField(row) {
   return `<input type="number" class="dose-recipe-qty" min="1" step="1" value="${qty}" placeholder="un." />`;
 }
 
+function getInsumoOptionProducts(insumoId) {
+  const insumo = state.products.find((p) => p.id === insumoId);
+  return getComboChoiceProducts().filter((p) => {
+    if (!insumo) return false;
+    if (isMlStockProduct(insumo)) return isMlStockProduct(p);
+    if (isUnitStockProduct(insumo)) return isUnitStockProduct(p);
+    return false;
+  });
+}
+
+function readInsumoOptionsFromRow(row, keepIncomplete) {
+  return Array.from(row.querySelectorAll(".dose-choice-option")).map((optRow) => {
+    const productId = optRow.querySelector(".dose-choice-product")?.value || "";
+    const extraPrice = Math.max(0, Number(optRow.querySelector(".dose-choice-extra")?.value || 0));
+    if (!productId && !keepIncomplete) return null;
+    return { productId, extraPrice };
+  }).filter(Boolean);
+}
+
 function renderDoseRecipeList(recipe = []) {
   const list = document.getElementById("doseRecipeList");
   if (!list) return;
   const ingredients = getDoseIngredientProducts();
-  const rows = recipe.length ? recipe : [{ productId: "", ml: 50, qty: 1 }];
+  const rows = recipe.length ? recipe : [{ productId: "", ml: 50, qty: 1, options: [] }];
   list.innerHTML = rows.map((row, idx) => {
     const options = ingredients.length
       ? ingredients.map((p) =>
         `<option value="${p.id}" ${row.productId === p.id ? "selected" : ""}>${escapeHtml(formatDoseIngredientOptionLabel(p))}</option>`
       ).join("")
       : "";
-    return `<div class="dose-recipe-row" data-idx="${idx}">
-      <select class="dose-recipe-product" ${ingredients.length ? "" : "disabled"}>
-        <option value="">Selecione o insumo</option>
-        ${options}
-      </select>
-      ${renderDoseRecipeAmountField(row)}
-      ${rows.length > 1 ? `<button type="button" class="btn-ctrl rm dose-recipe-remove" data-idx="${idx}" title="Remover">×</button>` : "<span></span>"}
+    const choiceProducts = getInsumoOptionProducts(row.productId);
+    const choiceRows = row.options?.length ? row.options : [];
+    const choiceHtml = choiceRows.map((opt, optIdx) => {
+      const selectOptions = choiceProducts.map((p) =>
+        `<option value="${p.id}" ${opt.productId === p.id ? "selected" : ""}>${escapeHtml(p.name)}</option>`
+      ).join("");
+      return `<div class="dose-choice-option">
+        <select class="dose-choice-product" ${choiceProducts.length ? "" : "disabled"}>
+          <option value="">Selecione a opção</option>
+          ${selectOptions}
+        </select>
+        <input type="number" class="dose-choice-extra" min="0" step="0.01" value="${Number(opt.extraPrice || 0)}" title="Acréscimo no preço, se esta opção custar a mais" placeholder="R$" />
+        <button type="button" class="btn-ctrl rm dose-choice-remove" data-idx="${idx}" data-opt="${optIdx}" title="Remover opção">×</button>
+      </div>`;
+    }).join("");
+    const fixedLabel = doseRecipeRowUsesMl(row.productId) ? "ml fixos" : "un. fixas";
+    return `<div class="dose-recipe-row" data-idx="${idx}" data-choice-id="${escapeHtml(row.choiceId || "")}">
+      <div class="dose-recipe-main">
+        <select class="dose-recipe-product" ${ingredients.length ? "" : "disabled"}>
+          <option value="">Selecione o insumo</option>
+          ${options}
+        </select>
+        ${renderDoseRecipeAmountField(row)}
+        ${rows.length > 1 ? `<button type="button" class="btn-ctrl rm dose-recipe-remove" data-idx="${idx}" title="Remover insumo">×</button>` : "<span></span>"}
+      </div>
+      <div class="dose-recipe-choices">
+        <input type="text" class="dose-choice-name" value="${escapeHtml(row.choiceName || "")}" placeholder="Nome da escolha, ex.: Sabor" />
+        <small class="dose-choice-hint">Quantidade ${fixedLabel} deste insumo. As opções abaixo usam essa mesma quantidade.</small>
+        ${choiceHtml}
+        <button type="button" class="btn btn-cash-sm dose-choice-add" data-idx="${idx}">+ Opção deste insumo</button>
+      </div>
     </div>`;
   }).join("");
 
   list.querySelectorAll(".dose-recipe-product").forEach((sel) => {
     sel.addEventListener("change", () => {
-      renderDoseRecipeList(readDoseRecipeFromDOM());
+      renderDoseRecipeList(readDoseRecipeFromDOM(true));
     });
   });
-
   list.querySelectorAll(".dose-recipe-remove").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const current = readDoseRecipeFromDOM();
+      const current = readDoseRecipeFromDOM(true);
       current.splice(Number(btn.dataset.idx), 1);
+      renderDoseRecipeList(current);
+    });
+  });
+  list.querySelectorAll(".dose-choice-add").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const current = readDoseRecipeFromDOM(true);
+      const row = current[Number(btn.dataset.idx)];
+      if (!row) return;
+      if (!row.productId) {
+        alert("Selecione o insumo antes de cadastrar as opções.");
+        return;
+      }
+      row.options = row.options || [];
+      row.options.push({ productId: "", extraPrice: 0 });
+      renderDoseRecipeList(current);
+    });
+  });
+  list.querySelectorAll(".dose-choice-remove").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const current = readDoseRecipeFromDOM(true);
+      const row = current[Number(btn.dataset.idx)];
+      if (!row) return;
+      row.options.splice(Number(btn.dataset.opt), 1);
       renderDoseRecipeList(current);
     });
   });
 }
 
-function readDoseRecipeFromDOM() {
+function readDoseRecipeFromDOM(keepIncomplete = false) {
   return Array.from(document.querySelectorAll("#doseRecipeList .dose-recipe-row")).map((row) => {
     const productId = row.querySelector(".dose-recipe-product")?.value || "";
     const product = state.products.find((p) => p.id === productId);
+    const choiceName = row.querySelector(".dose-choice-name")?.value.trim() || "";
+    const choiceId = row.dataset.choiceId || "";
+    const options = readInsumoOptionsFromRow(row, keepIncomplete);
+    let ml = 0;
+    let qty = 0;
     if (isMlStockProduct(product)) {
-      return {
-        productId,
-        ml: Math.max(0, Number(row.querySelector(".dose-recipe-ml")?.value || 0)),
-        qty: 0
-      };
+      ml = Math.max(0, Number(row.querySelector(".dose-recipe-ml")?.value || 0));
+    } else if (isUnitStockProduct(product)) {
+      qty = Math.max(1, Math.floor(Number(row.querySelector(".dose-recipe-qty")?.value || 1)));
+    } else {
+      ml = Math.max(0, Number(row.querySelector(".dose-recipe-ml")?.value || 0));
+      qty = Math.max(0, Math.floor(Number(row.querySelector(".dose-recipe-qty")?.value || 0)));
     }
-    if (isUnitStockProduct(product)) {
-      return {
-        productId,
-        ml: 0,
-        qty: Math.max(1, Math.floor(Number(row.querySelector(".dose-recipe-qty")?.value || 1)))
-      };
-    }
-    const ml = Math.max(0, Number(row.querySelector(".dose-recipe-ml")?.value || 0));
-    const qty = Math.max(0, Math.floor(Number(row.querySelector(".dose-recipe-qty")?.value || 0)));
-    return { productId, ml, qty };
+    return { productId, ml, qty, choiceId, choiceName, options };
   });
 }
 
@@ -7427,13 +7510,26 @@ function readProductStockFields(mode) {
     };
   }
   if (mode === STOCK_MODE_DOSE) {
+    const doseRecipe = readDoseRecipeFromDOM(false)
+      .filter(isValidDoseRecipeRow)
+      .map((row) => {
+        const options = (row.options || []).filter((opt) => opt.productId);
+        return {
+          productId: row.productId,
+          ml: row.ml,
+          qty: row.qty,
+          choiceId: options.length ? (row.choiceId || newComboEditorId("ins")) : "",
+          choiceName: options.length ? (row.choiceName || "Sabor") : "",
+          options
+        };
+      });
     const comboGroups = typeof DeliveryLogic !== "undefined"
-      ? DeliveryLogic.normalizeComboGroups(readComboGroupsFromDOM(false))
-      : readComboGroupsFromDOM(false);
+      ? DeliveryLogic.comboChoicesFromProduct({ doseRecipe, comboGroups: [] })
+      : [];
     return {
       qty: 0,
       bottleVolumeMl: 0,
-      doseRecipe: readDoseRecipeFromDOM().filter(isValidDoseRecipeRow),
+      doseRecipe,
       comboGroups
     };
   }
@@ -7456,9 +7552,46 @@ function fillProductStockFields(product) {
     : "";
   document.getElementById("productQtyMl").value = Math.max(0, Number(product.qty || 0));
   document.getElementById("productBottleVolumeMl").value = getBottleVolumeMl(product) || 1000;
-  renderDoseRecipeList(getDoseRecipe(product));
-  renderComboGroupList(Array.isArray(product.comboGroups) ? product.comboGroups : []);
+  renderDoseRecipeList(editorDoseRecipe(product));
   updateProductStockModeUI();
+}
+
+function editorDoseRecipe(product) {
+  const rows = getDoseRecipe(product);
+  if (rows.some((row) => row.options.length)) return rows;
+  return attachLegacyComboChoices(rows, Array.isArray(product?.comboGroups) ? product.comboGroups : []);
+}
+
+function attachLegacyComboChoices(rows, groups) {
+  const pending = (groups || []).filter((group) => Array.isArray(group?.options) && group.options.length);
+  if (!pending.length) return rows;
+  const next = rows.map((row) => ({ ...row, options: row.options || [] }));
+  pending.forEach((group) => {
+    const match = next.find((row) => group.options.some((opt) => opt.productId === row.productId) && !row.options.length);
+    const mapped = group.options.map((opt) => ({
+      productId: opt.productId,
+      extraPrice: Number(opt.extraPrice || 0)
+    }));
+    if (match) {
+      match.choiceId = group.id || match.choiceId || "";
+      match.choiceName = group.name || match.choiceName || "Sabor";
+      match.options = mapped;
+      return;
+    }
+    const first = group.options[0];
+    const ingredient = state.products.find((p) => p.id === first.productId);
+    const amount = Math.max(0, Number(first.qty || 0));
+    const usesMl = ingredient ? isMlStockProduct(ingredient) : amount > 20;
+    next.push({
+      productId: first.productId,
+      ml: usesMl ? (amount || 50) : 0,
+      qty: usesMl ? 0 : (amount || 1),
+      choiceId: group.id || "",
+      choiceName: group.name || "Sabor",
+      options: mapped
+    });
+  });
+  return next;
 }
 
 function setupProducts() {
@@ -7477,9 +7610,8 @@ function setupProducts() {
   setupCategoryManager();
   document.getElementById("productStockMode")?.addEventListener("change", updateProductStockModeUI);
   document.getElementById("btnAddDoseRecipeRow")?.addEventListener("click", () => {
-    renderDoseRecipeList([...readDoseRecipeFromDOM(), { productId: "", ml: 50, qty: 1 }]);
+    renderDoseRecipeList([...readDoseRecipeFromDOM(true), { productId: "", ml: 50, qty: 1, options: [] }]);
   });
-  setupComboGroupEditor();
 
   document.getElementById("productForm").addEventListener("submit", async (e) => {
     const form = e.target;
@@ -7535,19 +7667,14 @@ function setupProducts() {
       return;
     }
     if (stockMode === STOCK_MODE_DOSE) {
-      const draftGroups = readComboGroupsFromDOM(true);
-      const incompleteGroup = draftGroups.find((group) => group.name && !group.options.some((opt) => opt.productId));
-      if (incompleteGroup) {
-        alert(`O grupo «${incompleteGroup.name}» precisa de pelo menos um produto para o cliente escolher.`);
+      const draftRows = readDoseRecipeFromDOM(true);
+      const namedWithoutOption = draftRows.find((row) => row.choiceName && !(row.options || []).some((opt) => opt.productId));
+      if (namedWithoutOption) {
+        alert("A escolha do insumo precisa de pelo menos uma opção para o cliente selecionar.");
         return;
       }
-      const namedGroup = draftGroups.find((group) => !group.name && group.options.some((opt) => opt.productId));
-      if (namedGroup) {
-        alert("Dê um nome para cada grupo de escolha. Ex.: Marca ou Sabor.");
-        return;
-      }
-      if (!product.doseRecipe.length && !product.comboGroups.length) {
-        alert("Informe os itens fixos ou crie pelo menos um grupo de escolha do combo.");
+      if (!product.doseRecipe.length) {
+        alert("Cadastre pelo menos um insumo do combo e a quantidade fixa.");
         return;
       }
       const invalid = product.doseRecipe.find((row) => !isValidDoseRecipeRow(row));
@@ -7555,12 +7682,13 @@ function setupProducts() {
         alert("Cada insumo deve ser garrafa aberta (ml) ou produto em unidade (lata, gelo, etc.).");
         return;
       }
-      const duplicatedOption = product.comboGroups.find((group) => {
-        const ids = group.options.map((opt) => opt.productId);
+      const duplicatedOption = product.doseRecipe.find((row) => {
+        const ids = (row.options || []).map((opt) => opt.productId);
         return ids.length !== new Set(ids).size;
       });
       if (duplicatedOption) {
-        alert(`O grupo «${duplicatedOption.name}» tem o mesmo produto mais de uma vez.`);
+        const label = duplicatedOption.choiceName || "insumo";
+        alert(`A escolha «${label}» tem o mesmo produto mais de uma vez.`);
         return;
       }
     }
@@ -7583,6 +7711,11 @@ function setupProducts() {
       renderProducts();
       renderStock();
       renderPDVSearch("");
+      try {
+        await syncStorePublic(state.company);
+      } catch (err) {
+        console.warn("Publicar cardápio:", err);
+      }
     } catch (error) { alert(`Erro ao salvar produto: ${error.message}`); }
   });
   document.getElementById("btnClearProduct").addEventListener("click", openProductFormForNew);
@@ -7627,7 +7760,6 @@ function clearProductForm(collapse = false) {
   const modeEl = document.getElementById("productStockMode");
   if (modeEl) modeEl.value = STOCK_MODE_UNIT;
   renderDoseRecipeList([]);
-  renderComboGroupList([]);
   updateProductStockModeUI();
   updateProductFormMeta();
   if (collapse) setProductFormExpanded(false);

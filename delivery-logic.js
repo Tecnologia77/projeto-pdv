@@ -65,18 +65,85 @@
       let id = String(group?.id || "").trim() || `grp_${index + 1}`;
       if (used.has(id)) id = `${id}_${index + 1}`;
       used.add(id);
+      const fixedQty = Math.max(0, Number(group?.fixedQty || 0));
       const options = (Array.isArray(group?.options) ? group.options : []).map((opt) => {
         const productId = String(opt?.productId || "").trim();
         if (!productId) return null;
         return {
           productId,
           extraPrice: roundMoney(Math.max(0, Number(opt?.extraPrice || 0))),
-          qty: Math.max(0, Number(opt?.qty || 0))
+          qty: fixedQty > 0 ? fixedQty : Math.max(0, Number(opt?.qty || 0))
         };
       }).filter(Boolean);
       if (!options.length) return null;
-      return { id, name, options };
+      return {
+        id,
+        name,
+        replacesProductId: String(group?.replacesProductId || "").trim(),
+        options
+      };
     }).filter(Boolean);
+  }
+
+  function comboChoicesFromProduct(product) {
+    const recipe = Array.isArray(product?.doseRecipe) ? product.doseRecipe : [];
+    const fromRecipe = [];
+    recipe.forEach((row, index) => {
+      const rawOptions = (Array.isArray(row?.options) ? row.options : []).filter((opt) => String(opt?.productId || "").trim());
+      if (!rawOptions.length) return;
+      const ml = Math.max(0, Number(row?.ml || 0));
+      const units = Math.max(0, Number(row?.qty || 0));
+      const fixedQty = ml > 0 ? ml : (units > 0 ? units : 1);
+      fromRecipe.push({
+        id: String(row?.choiceId || "").trim() || `insumo_${index + 1}`,
+        name: String(row?.choiceName || "").trim() || "Sabor",
+        replacesProductId: String(row?.productId || "").trim(),
+        fixedQty,
+        options: rawOptions.map((opt) => ({
+          productId: String(opt.productId).trim(),
+          extraPrice: opt.extraPrice || 0,
+          qty: fixedQty
+        }))
+      });
+    });
+    if (fromRecipe.length) return normalizeComboGroups(fromRecipe);
+    return normalizeComboGroups(product?.comboGroups);
+  }
+
+  function menuCategoryTabs(nodes, products) {
+    const list = Array.isArray(nodes) ? nodes : [];
+    const byId = new Map(list.filter((node) => node && node.id && node.name).map((node) => [String(node.id), node]));
+    const map = new Map();
+    (Array.isArray(products) ? products : []).forEach((product) => {
+      const categoryId = String(product?.categoryId || "").trim();
+      let label = "";
+      if (categoryId && byId.has(categoryId)) {
+        const parts = [];
+        let current = byId.get(categoryId);
+        let guard = 0;
+        while (current && guard < 20) {
+          parts.unshift(current.name);
+          current = current.parentId ? byId.get(String(current.parentId)) : null;
+          guard += 1;
+        }
+        label = parts.join(" › ");
+      }
+      if (!label) label = String(product?.category || "").trim() || "Outros";
+      const key = label
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+      const value = categoryId && byId.has(categoryId) ? categoryId : `name:${key}`;
+      const current = map.get(key);
+      if (!current) map.set(key, { value, label });
+      else if (byId.has(value)) current.value = value;
+    });
+    const order = new Map(list.map((node, index) => [String(node.id), Number(node.order ?? index)]));
+    return [...map.values()].sort((a, b) =>
+      (order.get(a.value) ?? 9999) - (order.get(b.value) ?? 9999)
+      || a.label.localeCompare(b.label, "pt-BR")
+    );
   }
 
   function comboUnitPrice(basePrice, selections) {
@@ -100,6 +167,8 @@
     getDeliveryFeeMode,
     calculateDeliveryFee,
     normalizeComboGroups,
+    comboChoicesFromProduct,
+    menuCategoryTabs,
     comboUnitPrice,
     comboSelectionKey
   };

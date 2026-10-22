@@ -281,11 +281,19 @@ function getCartTotals() {
 
 function getComboGroups(product) {
   if (typeof DeliveryLogic === "undefined") return [];
+  if (typeof DeliveryLogic.comboChoicesFromProduct === "function") {
+    return DeliveryLogic.comboChoicesFromProduct(product);
+  }
   return DeliveryLogic.normalizeComboGroups(product?.comboGroups);
 }
 
 function productHasComboChoices(product) {
   return getComboGroups(product).length > 0;
+}
+
+function productOpensCombo(product) {
+  if (productHasComboChoices(product)) return true;
+  return product?.stockMode === "dose" && getNormalizedDoseRecipe(product, deliveryState.products).length > 0;
 }
 
 function optionDeductQty(option, product) {
@@ -309,8 +317,9 @@ function getStockReserved(productId, cart = deliveryState.cart, ignoreLineId = "
       }
     });
     if (parent?.stockMode === "dose") {
+      const replaced = new Set((item.selections || []).map((sel) => sel.replacesProductId).filter(Boolean));
       getNormalizedDoseRecipe(parent, deliveryState.products).forEach((comp) => {
-        if (comp.productId !== productId) return;
+        if (comp.productId !== productId || replaced.has(comp.productId)) return;
         const ingredient = deliveryState.products.find((p) => p.id === productId);
         reserved += getDoseRecipeComponentPerDose(comp, ingredient) * Number(item.qty || 0);
       });
@@ -361,12 +370,16 @@ function getNormalizedDoseRecipe(product, products) {
       const ingredient = products.find((p) => p.id === productId);
       const ml = Math.max(0, Number(row?.ml || 0));
       const qty = Math.max(0, Math.floor(Number(row?.qty || 0)));
-      if (ingredient?.stockMode === "ml" && ml > 0) return { productId, ml, qty: 0 };
+      const choiceId = String(row?.choiceId || "").trim();
+      const choiceName = String(row?.choiceName || "").trim();
+      const options = (Array.isArray(row?.options) ? row.options : []).filter((opt) => String(opt?.productId || "").trim());
+      const choice = { choiceId, choiceName, options };
+      if (ingredient?.stockMode === "ml" && ml > 0) return { productId, ml, qty: 0, ...choice };
       if (!ingredient?.stockMode || ingredient.stockMode === "unit") {
-        return { productId, ml: 0, qty: qty > 0 ? qty : 1 };
+        return { productId, ml: 0, qty: qty > 0 ? qty : 1, ...choice };
       }
-      if (ml > 0) return { productId, ml, qty: 0 };
-      if (qty > 0) return { productId, ml: 0, qty };
+      if (ml > 0) return { productId, ml, qty: 0, ...choice };
+      if (qty > 0) return { productId, ml: 0, qty, ...choice };
       return null;
     })
     .filter(Boolean);
@@ -385,6 +398,7 @@ function getDeliveryProductAvailability(product, products = deliveryState.produc
         const p = products.find((x) => x.id === item.productId);
         if (!p || p.stockMode !== "dose") return;
         getNormalizedDoseRecipe(p, products).forEach((comp) => {
+          if ((comp.options || []).length) return;
           const ing = products.find((x) => x.id === comp.productId);
           const perDose = getDoseRecipeComponentPerDose(comp, ing);
           if (perDose > 0) {
@@ -393,6 +407,7 @@ function getDeliveryProductAvailability(product, products = deliveryState.produc
         });
       });
       recipe.forEach((comp) => {
+        if ((comp.options || []).length) return;
         const ing = products.find((p) => p.id === comp.productId);
         const perDose = getDoseRecipeComponentPerDose(comp, ing);
         if (!ing || perDose <= 0) return (maxDoses = 0);
@@ -403,10 +418,11 @@ function getDeliveryProductAvailability(product, products = deliveryState.produc
         maxDoses = Math.min(maxDoses, Math.floor(available / perDose));
       });
     }
+    const hasFixedInsumo = recipe.some((comp) => !(comp.options || []).length);
     if (groups.length) {
       const selectable = groups.every((group) => group.options.some((opt) => getOptionRemaining(opt) > 0));
       if (!selectable) return 0;
-      if (!recipe.length) return 99;
+      if (!hasFixedInsumo) return 99;
     }
     return Math.max(0, maxDoses === Infinity ? 0 : maxDoses);
   }
@@ -509,20 +525,15 @@ function getDeliveryProductRootCategory(product) {
 }
 
 function getDeliveryFilterTabs(products) {
-  const fromTree = getDeliveryCategoryChildren("").map((node) => ({
-    value: node.id,
-    label: node.name
-  }));
-  if (fromTree.length) return fromTree;
-
+  if (typeof DeliveryLogic !== "undefined" && typeof DeliveryLogic.menuCategoryTabs === "function") {
+    return DeliveryLogic.menuCategoryTabs(getDeliveryCategoryNodes(), products);
+  }
   const map = new Map();
   products.forEach((product) => {
-    const root = getDeliveryProductRootCategory(product);
-    if (!map.has(root.id)) map.set(root.id, root.name);
+    const label = getDeliveryProductCategoryLabel(product);
+    if (!map.has(label)) map.set(label, { value: getDeliveryProductCategoryId(product) || label, label });
   });
-  return [...map.entries()]
-    .map(([value, label]) => ({ value, label }))
-    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  return [...map.values()];
 }
 
 function productMatchesSelectedCategory(product) {
@@ -533,6 +544,9 @@ function productMatchesSelectedCategory(product) {
     if (productId === selected) return true;
     if (getDeliveryCategoryDescendantIds(selected).has(productId)) return true;
   }
+  const label = getDeliveryProductCategoryLabel(product);
+  const labelKey = `name:${normalizeSearch(label)}`;
+  if (selected === labelKey || normalizeSearch(label) === normalizeSearch(selected)) return true;
   const root = getDeliveryProductRootCategory(product);
   if (root.id === selected) return true;
   return normalizeSearch(root.name) === normalizeSearch(selected)
@@ -600,7 +614,11 @@ function groupProductsByCategory(products) {
     if (!groups.has(label)) groups.set(label, []);
     groups.get(label).push(product);
   });
-  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+  const order = new Map(getDeliveryFilterTabs(products).map((tab, index) => [tab.label, index]));
+  return [...groups.entries()].sort((a, b) =>
+    (order.get(a[0]) ?? 9999) - (order.get(b[0]) ?? 9999)
+    || a[0].localeCompare(b[0], "pt-BR")
+  );
 }
 
 function setOrderTrackLayout(active) {
@@ -608,24 +626,66 @@ function setOrderTrackLayout(active) {
   document.getElementById("deliveryApp")?.classList.toggle("has-order-track", !!active);
 }
 
+function comboChoiceInfo(group) {
+  const insumo = deliveryState.products.find((item) => item.id === group.replacesProductId);
+  const sample = deliveryState.products.find((item) => item.id === group.options[0]?.productId);
+  const fixedQty = Number(group.options[0]?.qty || 0);
+  const usesMl = insumo?.stockMode === "ml" || sample?.stockMode === "ml";
+  return {
+    insumoName: insumo?.name || "",
+    choiceName: group.name || "Sabor",
+    qtyLabel: usesMl ? `${fixedQty} ml` : `${fixedQty || 1} un.`
+  };
+}
+
+function comboOptionLabel(option) {
+  const chosen = deliveryState.products.find((item) => item.id === option.productId);
+  return chosen?.name || "";
+}
+
+function comboChoiceButtonLabel(product) {
+  const groups = getComboGroups(product);
+  if (groups.length === 1) {
+    const name = String(groups[0].name || "sabor").trim().toLowerCase();
+    return `Escolher ${name}`;
+  }
+  return "Escolher opções";
+}
+
+function renderComboChoicePreview(product) {
+  return getComboGroups(product).map((group) => {
+    const info = comboChoiceInfo(group);
+    const names = group.options.map(comboOptionLabel).filter(Boolean);
+    const shown = names.slice(0, 3).join(", ");
+    const extra = names.length > 3 ? ` e mais ${names.length - 3}` : "";
+    const title = info.insumoName ? `${info.insumoName} · ${info.choiceName}` : info.choiceName;
+    const detail = shown ? `${shown}${extra}` : "Toque para ver as opções";
+    return `<li><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></li>`;
+  }).join("");
+}
+
 function renderProductCard(p) {
   const qty = getCartQty(p.id);
   const hasChoices = productHasComboChoices(p);
+  const opens = productOpensCombo(p);
   const photo = p.photo
     ? `<img src="${escapeHtml(p.photo)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.closest('.product-card-media')?.classList.add('product-card-media--empty')" />`
     : `<div class="product-photo-placeholder" aria-hidden="true">📦</div>`;
-  const choiceBadge = hasChoices
-    ? `<div class="combo-badge">${qty > 0 ? `${qty} no pedido · ` : ""}Escolher opções</div>`
-    : "";
+  const choicePreview = hasChoices
+    ? `<div class="combo-badge">${qty > 0 ? `${qty} no pedido · ` : ""}Toque para escolher</div>
+       <ul class="combo-card-choices">${renderComboChoicePreview(p)}</ul>`
+    : opens
+      ? `<div class="combo-badge">${qty > 0 ? `${qty} no pedido · ` : ""}Toque para abrir o combo</div>`
+      : "";
   return `
-    <article class="product-card" data-id="${escapeHtml(p.id)}">
+    <article class="product-card${opens ? " product-card--combo" : ""}" data-id="${escapeHtml(p.id)}"${opens ? ` data-action="choose" data-product-id="${escapeHtml(p.id)}"` : ""}>
       <div class="product-card-media${p.photo ? "" : " product-card-media--empty"}">${photo}</div>
       <div class="name">${escapeHtml(p.name)}</div>
-      ${choiceBadge}
+      ${choicePreview}
       <div class="price">${money(p.price)}</div>
       <div class="add-row">
-        ${hasChoices
-          ? `<button type="button" class="btn-add" data-action="choose" data-id="${escapeHtml(p.id)}">${qty > 0 ? "Adicionar outro" : "Montar combo"}</button>`
+        ${opens
+          ? `<button type="button" class="btn-add" data-action="choose" data-id="${escapeHtml(p.id)}">${qty > 0 ? "Adicionar outro" : hasChoices ? comboChoiceButtonLabel(p) : "Abrir combo"}</button>`
           : qty > 0 ? `
           <div class="qty-mini">
             <button type="button" data-action="minus" data-id="${escapeHtml(p.id)}" aria-label="Remover um">−</button>
@@ -638,17 +698,19 @@ function renderProductCard(p) {
 }
 
 function bindProductGridActions(root) {
-  root?.querySelectorAll("[data-action]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      const product = deliveryState.products.find((p) => p.id === id);
-      if (!product) return;
-      const action = btn.dataset.action;
-      if (action === "choose") openComboModal(product);
-      else if (action === "add") changeQty(product, 1);
-      else if (action === "plus") changeQty(product, 1);
-      else if (action === "minus") changeQty(product, -1);
-    });
+  if (!root || root.dataset.actionsBound === "1") return;
+  root.dataset.actionsBound = "1";
+  root.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-action]");
+    if (!trigger || !root.contains(trigger)) return;
+    const id = trigger.dataset.id || trigger.dataset.productId;
+    const product = deliveryState.products.find((item) => item.id === id);
+    if (!product) return;
+    const action = trigger.dataset.action;
+    if (action === "choose") openComboModal(product);
+    else if (action === "add") changeQty(product, 1);
+    else if (action === "plus") changeQty(product, 1);
+    else if (action === "minus") changeQty(product, -1);
   });
 }
 
@@ -719,11 +781,22 @@ function setupMenuToolbar() {
   });
 }
 
+function maxOrderQty(product, lineId, currentQty) {
+  if (product?.stockMode === "dose" && !productHasComboChoices(product)) {
+    return currentQty + getDeliveryProductAvailability(product);
+  }
+  return Math.max(0, Number(product?.qty || 0) - getStockReserved(product.id, deliveryState.cart, lineId));
+}
+
 function changeQty(product, diff) {
   const lineId = product.id;
-  const max = Math.max(0, Number(product.qty || 0) - getStockReserved(product.id, deliveryState.cart, lineId));
   let item = deliveryState.cart.find((i) => i.lineId === lineId);
+  const max = maxOrderQty(product, lineId, item?.qty || 0);
   if (!item && diff > 0) {
+    if (max < 1) {
+      alert(product.stockMode === "dose" ? "Estoque insuficiente para montar este combo." : `Estoque máximo: ${max}`);
+      return;
+    }
     item = {
       lineId,
       productId: product.id,
@@ -765,10 +838,18 @@ function buildComboSelections(product) {
       productId: chosen.id,
       name: chosen.name,
       extraPrice: Number(option.extraPrice || 0),
-      deductQty: optionDeductQty(option, chosen)
+      deductQty: optionDeductQty(option, chosen),
+      replacesProductId: group.replacesProductId || ""
     });
   }
   return selections;
+}
+
+function markSelectedComboOptions(box) {
+  box.querySelectorAll(".combo-option").forEach((label) => {
+    const input = label.querySelector("input[type=radio]");
+    label.classList.toggle("is-selected", !!input?.checked);
+  });
 }
 
 function renderComboModal(product) {
@@ -777,30 +858,54 @@ function renderComboModal(product) {
   const title = document.getElementById("comboModalTitle");
   const hint = document.getElementById("comboModalHint");
   if (title) title.textContent = product.name;
-  if (hint) hint.textContent = "Escolha um produto em cada grupo para montar o pedido.";
+  if (hint) {
+    hint.textContent = groups.length
+      ? "Toque no sabor de cada insumo. A quantidade continua a que a loja cadastrou."
+      : "Estes insumos entram no combo na quantidade cadastrada.";
+  }
   if (!box) return;
-  box.innerHTML = groups.map((group) => {
+  const fixedLines = getNormalizedDoseRecipe(product, deliveryState.products)
+    .filter((row) => !(row.options || []).length)
+    .map((row) => {
+      const ing = deliveryState.products.find((item) => item.id === row.productId);
+      const amount = ing?.stockMode === "ml" ? `${row.ml} ml` : `${row.qty} un.`;
+      return `<p class="combo-fixed-line">${escapeHtml(ing?.name || "Insumo")} · ${amount}</p>`;
+    }).join("");
+  const fixedBlock = fixedLines
+    ? `<div class="combo-fixed"><p class="combo-fixed-title">Já incluso neste combo</p>${fixedLines}</div>`
+    : "";
+  box.innerHTML = fixedBlock + groups.map((group) => {
+    const info = comboChoiceInfo(group);
     const options = group.options.map((opt) => {
-      const chosen = deliveryState.products.find((p) => p.id === opt.productId);
-      if (!chosen) return "";
+      const label = comboOptionLabel(opt);
+      if (!label) return "";
       const remaining = getOptionRemaining(opt);
       const extra = Number(opt.extraPrice || 0);
       const disabled = remaining <= 0 ? "disabled" : "";
-      return `<label class="combo-option">
+      return `<label class="combo-option${remaining <= 0 ? " is-disabled" : ""}">
         <input type="radio" name="combo-${escapeHtml(group.id)}" value="${escapeHtml(opt.productId)}" ${disabled} />
-        <span>${escapeHtml(chosen.name)}${remaining <= 0 ? " (sem estoque)" : ""}</span>
-        <small>${extra > 0 ? `+ ${money(extra)}` : "incluso"}</small>
+        <span class="combo-option-copy">
+          <span class="combo-option-name">${escapeHtml(label)}</span>
+          <small>${remaining <= 0 ? "sem estoque" : extra > 0 ? `+ ${money(extra)}` : "incluso"}</small>
+        </span>
       </label>`;
     }).join("");
-    return `<fieldset class="combo-choice"><strong>${escapeHtml(group.name)}</strong>${options}</fieldset>`;
+    const insumoLine = info.insumoName
+      ? `<p class="combo-choice-kicker">${escapeHtml(info.insumoName)} · quantidade fixa ${escapeHtml(info.qtyLabel)}</p>`
+      : `<p class="combo-choice-kicker">Quantidade fixa ${escapeHtml(info.qtyLabel)}</p>`;
+    return `<section class="combo-choice">${insumoLine}<h3>${escapeHtml(info.choiceName)}</h3><div class="combo-options">${options}</div></section>`;
   }).join("");
   box.querySelectorAll("input[type=radio]").forEach((input) => {
-    input.addEventListener("change", () => updateComboModalPrice(product));
+    input.addEventListener("change", () => {
+      markSelectedComboOptions(box);
+      updateComboModalPrice(product);
+    });
   });
   groups.forEach((group) => {
     const first = box.querySelector(`input[name="combo-${CSS.escape(group.id)}"]:not(:disabled)`);
     if (first) first.checked = true;
   });
+  markSelectedComboOptions(box);
   updateComboModalPrice(product);
 }
 
@@ -812,17 +917,22 @@ function updateComboModalPrice(product) {
     : Number(product.price || 0);
   if (priceEl) priceEl.textContent = selections.length === getComboGroups(product).length
     ? `Preço deste combo: ${money(price)}`
-    : "Selecione uma opção em cada grupo.";
+    : "Selecione uma opção de cada insumo.";
 }
 
 function openComboModal(product) {
-  if (!productHasComboChoices(product)) {
+  if (!productOpensCombo(product)) {
     changeQty(product, 1);
     return;
   }
-  const missing = getComboGroups(product).find((group) => !group.options.some((opt) => getOptionRemaining(opt) > 0));
-  if (missing) {
-    alert(`Sem estoque para escolher «${missing.name}».`);
+  if (productHasComboChoices(product)) {
+    const missing = getComboGroups(product).find((group) => !group.options.some((opt) => getOptionRemaining(opt) > 0));
+    if (missing) {
+      alert(`Sem estoque para escolher «${missing.name}».`);
+      return;
+    }
+  } else if (getDeliveryProductAvailability(product) < 1) {
+    alert("Estoque insuficiente para montar este combo.");
     return;
   }
   deliveryState.comboProductId = product.id;
@@ -838,9 +948,18 @@ function closeComboModal() {
 function confirmComboSelection() {
   const product = deliveryState.products.find((p) => p.id === deliveryState.comboProductId);
   if (!product) return;
+  if (!getComboGroups(product).length) {
+    if (product.stockMode === "dose" && getDeliveryProductAvailability(product) < 1) {
+      alert("Estoque insuficiente para montar mais um combo.");
+      return;
+    }
+    closeComboModal();
+    changeQty(product, 1);
+    return;
+  }
   const selections = buildComboSelections(product);
   if (!selections || selections.length !== getComboGroups(product).length) {
-    alert("Escolha um produto em cada grupo do combo.");
+    alert("Escolha uma opção de cada insumo do combo.");
     return;
   }
   const over = selections.find((sel) => {
@@ -890,6 +1009,11 @@ function changeLineQty(lineId, diff) {
     });
     if (blocked) {
       alert(`Sem estoque para ${blocked.name}.`);
+      return;
+    }
+  } else if (diff > 0 && product.stockMode === "dose") {
+    if (getDeliveryProductAvailability(product) < 1) {
+      alert("Estoque insuficiente para montar mais um combo.");
       return;
     }
   } else if (diff > 0 && !productHasComboChoices(product)) {
@@ -1104,7 +1228,8 @@ async function submitOrder(e) {
       productId: sel.productId,
       name: sel.name,
       extraPrice: Number(sel.extraPrice || 0),
-      deductQty: Number(sel.deductQty || 0)
+      deductQty: Number(sel.deductQty || 0),
+      replacesProductId: sel.replacesProductId || ""
     }))
   }));
 

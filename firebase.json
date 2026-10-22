@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "adega-brothers",
     "public": ".",
     "ignore": [
       "firebase.json",
@@ -9,6 +10,12 @@
       "storage.rules",
       "README.md",
       "delivery-logic.test.js"
+    ],
+    "rewrites": [
+      {
+        "source": "/loja/**",
+        "destination": "/delivery.html"
+      }
     ]
   },
   "firestore": {

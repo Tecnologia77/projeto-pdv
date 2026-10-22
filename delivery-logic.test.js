@@ -51,4 +51,49 @@ assert.strictEqual(
   "combo1::g1:a|g2:c"
 );
 
+const fromInsumo = logic.comboChoicesFromProduct({
+  doseRecipe: [
+    { productId: "gelo", ml: 0, qty: 1 },
+    {
+      productId: "energetico",
+      ml: 0,
+      qty: 1,
+      choiceName: "Sabor",
+      options: [
+        { productId: "redbull", extraPrice: 0, qty: 9 },
+        { productId: "monster", extraPrice: 2 }
+      ]
+    }
+  ]
+});
+assert.strictEqual(fromInsumo.length, 1);
+assert.strictEqual(fromInsumo[0].name, "Sabor");
+assert.strictEqual(fromInsumo[0].replacesProductId, "energetico");
+assert.strictEqual(fromInsumo[0].options[0].qty, 1);
+assert.strictEqual(fromInsumo[0].options[1].qty, 1);
+assert.strictEqual(fromInsumo[0].options[1].extraPrice, 2);
+
+const legacy = logic.comboChoicesFromProduct({
+  doseRecipe: [{ productId: "gelo", qty: 1 }],
+  comboGroups: [{ name: "Marca", options: [{ productId: "jack", qty: 50 }] }]
+});
+assert.strictEqual(legacy.length, 1);
+assert.strictEqual(legacy[0].options[0].qty, 50);
+
+const tabs = logic.menuCategoryTabs(
+  [
+    { id: "dest", name: "Destilados", parentId: "", order: 1 },
+    { id: "whisky", name: "Whisky", parentId: "dest", order: 0 },
+    { id: "combos", name: "Combos", parentId: "", order: 2 }
+  ],
+  [
+    { name: "Jack", categoryId: "whisky", category: "Destilados › Whisky" },
+    { name: "Combo Red Bull", categoryId: "combos", category: "Combos" },
+    { name: "Combo novo", category: "Especiais" }
+  ]
+);
+assert.deepStrictEqual(tabs.map((tab) => tab.label), ["Destilados › Whisky", "Combos", "Especiais"]);
+assert.strictEqual(tabs[1].value, "combos");
+assert.strictEqual(tabs[2].value, "name:especiais");
+
 console.log("delivery-logic tests ok");
