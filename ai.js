@@ -8,6 +8,9 @@
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
   const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"];
   const ACCEPTED_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"];
+  // PNG azul de 180×180 que o ImgBB devolve no lugar da foto (HTTP 503 ou 200).
+  const IMGBB_PLACEHOLDER_BYTES = 1115;
+  const IMGBB_PLACEHOLDER_SHA256 = "3924575580e7b987e65ce7de63a3a51655e9c2abaafdf76d204174d1992c8a04";
   let pendingImageFile = null;
   let lastImageUrl = "";
   let uploadInProgress = false;
@@ -80,6 +83,96 @@
     return snap.ref.getDownloadURL();
   }
 
+  function imageBaseName(file) {
+    const base = String(file?.name || "produto").replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]+/g, "").slice(0, 40);
+    if (!base || /^(shopping|image|img)$/i.test(base)) return "produto";
+    return base;
+  }
+
+  function shouldTranscodeToJpeg(file) {
+    const type = String(file?.type || "").toLowerCase();
+    const name = String(file?.name || "").toLowerCase();
+    if (type === "image/jpeg" || type === "image/jpg" || type === "image/png") return false;
+    if (type === "image/webp" || type === "image/gif") return true;
+    return /\.(webp|gif)$/.test(name);
+  }
+
+  function extractImageUrlFromHtml(html) {
+    const match = String(html || "").match(/<img[^>]+src=["']([^"']+)["']/i);
+    const src = match?.[1] || "";
+    if (/^https?:\/\//i.test(src) || src.startsWith("data:image/")) return src;
+    return "";
+  }
+
+  function extractHttpUrl(text) {
+    const line = String(text || "")
+      .split(/\s+/)
+      .map((part) => part.trim())
+      .find((part) => /^https?:\/\//i.test(part) && !/^https?:\/\/www\.google\./i.test(part));
+    return line || "";
+  }
+
+  function imgbbCandidateUrls(payload) {
+    const data = payload?.data || payload || {};
+    const direct = [data.display_url, data.image?.url, data.medium?.url, data.url, data.thumb?.url]
+      .map((url) => String(url || "").trim())
+      .filter((url) => /^https?:\/\//i.test(url));
+    const swapped = [];
+    direct.forEach((url) => {
+      if (/\.webp(\?.*)?$/i.test(url)) {
+        swapped.push(url.replace(/\.webp(\?.*)?$/i, ".jpg"));
+        swapped.push(url.replace(/\.webp(\?.*)?$/i, ".jpeg"));
+        swapped.push(url.replace(/\.webp(\?.*)?$/i, ".png"));
+      }
+    });
+    return [...new Set([...direct, ...swapped])];
+  }
+
+  async function isImgbbPlaceholderBuffer(buffer) {
+    const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : new Uint8Array(buffer || []);
+    if (bytes.byteLength !== IMGBB_PLACEHOLDER_BYTES) return false;
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return hex === IMGBB_PLACEHOLDER_SHA256;
+  }
+
+  async function hostedImageIsUsable(url, { allowUnreachable = false } = {}) {
+    try {
+      const res = await fetch(url, { cache: "no-store", mode: "cors" });
+      if (!res.ok) return false;
+      const type = String(res.headers.get("content-type") || "").toLowerCase();
+      if (!type.startsWith("image/")) return false;
+      const buf = await res.arrayBuffer();
+      if (await isImgbbPlaceholderBuffer(buf)) return false;
+      return buf.byteLength >= 64;
+    } catch (_) {
+      return allowUnreachable;
+    }
+  }
+
+  async function imgbbUrlLooksBroken(url) {
+    try {
+      const res = await fetch(url, { cache: "no-store", mode: "cors" });
+      if (res.status === 503) return true;
+      if (!res.ok) return false;
+      const buf = await res.arrayBuffer();
+      return isImgbbPlaceholderBuffer(buf);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function firstUsableHostedUrl(urls) {
+    for (const url of urls) {
+      if (await hostedImageIsUsable(url)) return url;
+    }
+    return "";
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async function uploadViaImgBB(file) {
     const key = getImgBBKey();
     if (!key) throw new Error("IMG_BB_NOT_CONFIGURED");
@@ -87,41 +180,58 @@
     const body = new URLSearchParams();
     body.append("key", key);
     body.append("image", base64);
-    body.append("name", file.name.replace(/\.[^.]+$/, "") || "produto");
+    body.append("name", imageBaseName(file));
     const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body });
     const data = await res.json().catch(() => ({}));
-    if (!data?.success || !data?.data?.url) {
+    const urls = imgbbCandidateUrls(data);
+    if (!data?.success || !urls.length) {
       const msg = data?.error?.message || data?.error?.context || `Erro ao hospedar (${res.status})`;
       throw new Error(msg);
     }
-    return data.data.url;
+    return urls;
+  }
+
+  async function verifiedImgbbUrl(file) {
+    let lastUrls = [];
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      lastUrls = await uploadViaImgBB(file);
+      const delays = [0, 700, 1600];
+      for (const delay of delays) {
+        if (delay) await sleep(delay);
+        const url = await firstUsableHostedUrl(lastUrls);
+        if (url) return url;
+      }
+    }
+    return "";
   }
 
   async function uploadImageFile(file) {
     const user = pdv().getUser?.();
     if (!user?.uid) throw new Error("Faça login para hospedar imagens.");
 
-    let url = null;
+    let imgbbFailedOpen = false;
 
     if (getImgBBKey()) {
       try {
-        url = await uploadViaImgBB(file);
-        return { url, provider: "ImgBB" };
+        const url = await verifiedImgbbUrl(file);
+        if (url) return { url, provider: "ImgBB" };
+        imgbbFailedOpen = true;
       } catch (err) {
         if (err.message !== "IMG_BB_NOT_CONFIGURED") console.warn("ImgBB:", err);
       }
     }
 
     try {
-      url = await uploadViaFirebaseStorage(file, user.uid);
-      return { url, provider: "Firebase" };
+      const url = await uploadViaFirebaseStorage(file, user.uid);
+      if (await hostedImageIsUsable(url, { allowUnreachable: true })) return { url, provider: "Firebase" };
     } catch (firebaseErr) {
       console.warn("Firebase Storage:", firebaseErr);
     }
 
-    if (getImgBBKey()) {
-      url = await uploadViaImgBB(file);
-      return { url, provider: "ImgBB" };
+    if (imgbbFailedOpen) {
+      throw new Error(
+        "O ImgBB devolveu \"service unavailable\" no lugar da foto. Tente de novo. Se arrastou do Google, salve a imagem no computador e clique na área para escolher o arquivo."
+      );
     }
 
     throw new Error(
@@ -149,8 +259,27 @@
     const wrap = document.getElementById("productPhotoPreview");
     const img = document.getElementById("productPhotoPreviewImg");
     if (!wrap || !img) return;
+    img.onerror = null;
     if (url) {
+      img.dataset.retried = "0";
+      img.onerror = () => {
+        if (img.dataset.retried === "1") {
+          setProductPhotoStatus("O ImgBB não abriu essa foto (service unavailable). Envie a imagem de novo.", "error");
+          return;
+        }
+        img.dataset.retried = "1";
+        const join = url.includes("?") ? "&" : "?";
+        img.src = `${url}${join}r=${Date.now()}`;
+      };
       img.src = url;
+      if (/ibb\.co|imgbb\.com/i.test(url)) {
+        imgbbUrlLooksBroken(url).then((broken) => {
+          const current = document.getElementById("productPhoto")?.value.trim() || "";
+          if (broken && current === url) {
+            setProductPhotoStatus("O ImgBB não abriu essa foto (service unavailable). Envie a imagem de novo.", "error");
+          }
+        });
+      }
     } else {
       img.removeAttribute("src");
     }
@@ -164,7 +293,10 @@
 
     if (context === "product" || context === "both") {
       if (productInput) productInput.value = url;
-      showProductPhotoPreview(url);
+      const img = document.getElementById("productPhotoPreviewImg");
+      const showingLocal = String(img?.src || "").startsWith("blob:");
+      if (!showingLocal) showProductPhotoPreview(url);
+      else syncProductPhotoZoneLayout();
       setProductPhotoStatus("Link gerado! Salve o produto para concluir.", "success");
     }
 
@@ -198,7 +330,9 @@
     if (context === "product") {
       showLocalProductPhotoPreview(file);
       setProductPhotoStatus(
-        file.size > MAX_IMAGE_BYTES ? "Comprimindo e enviando imagem..." : "Enviando imagem...",
+        file.size > MAX_IMAGE_BYTES || shouldTranscodeToJpeg(file)
+          ? "Convertendo e enviando imagem..."
+          : "Enviando imagem...",
         "info"
       );
     } else {
@@ -235,7 +369,8 @@
     } catch (error) {
       const msg = error.message || "Erro ao enviar imagem.";
       if (context === "product") {
-        resetProductPhotoUploadUi();
+        const savedUrl = document.getElementById("productPhoto")?.value.trim() || "";
+        if (savedUrl) resetProductPhotoUploadUi();
         setProductPhotoStatus(msg, "error");
       } else {
         setAiStatus(msg, "error");
@@ -405,8 +540,8 @@
     return null;
   }
 
-  async function compressImageFile(file, maxBytes = MAX_IMAGE_BYTES) {
-    if (file.size <= maxBytes) return file;
+  async function compressImageFile(file, maxBytes = MAX_IMAGE_BYTES, { forceJpeg = false } = {}) {
+    if (!forceJpeg && file.size <= maxBytes) return file;
     const type = String(file.type || "").toLowerCase();
     if (type === "image/heic" || type === "image/heif" || /\.heic$|\.heif$/i.test(file.name || "")) {
       throw new Error("Foto HEIC do iPhone não é suportada aqui. Altere a câmera para JPG ou envie um print/captura.");
@@ -445,16 +580,22 @@
       quality -= 0.08;
       blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
     }
-    if (!blob) return file;
-    const baseName = String(file.name || "produto").replace(/\.[^.]+$/, "").slice(0, 40) || "produto";
-    return new File([blob], `${baseName}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
+    if (!blob) {
+      if (forceJpeg) throw new Error("Não foi possível converter a foto arrastada. Salve a imagem no computador e escolha o arquivo.");
+      return file;
+    }
+    if (blob.size > maxBytes) {
+      throw new Error("Imagem ainda está grande demais. Tente uma foto menor ou com menos qualidade.");
+    }
+    return new File([blob], `${imageBaseName(file)}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
   }
 
   async function prepareImageFile(file) {
     const err = validateImageFile(file);
     if (err) throw new Error(err);
-    if (file.size <= MAX_IMAGE_BYTES) return file;
-    return compressImageFile(file);
+    const forceJpeg = shouldTranscodeToJpeg(file);
+    if (!forceJpeg && file.size <= MAX_IMAGE_BYTES) return file;
+    return compressImageFile(file, MAX_IMAGE_BYTES, { forceJpeg });
   }
 
   function resetProductPhotoUploadUi() {
@@ -484,10 +625,60 @@
     const preview = document.getElementById("productPhotoPreview");
     const img = document.getElementById("productPhotoPreviewImg");
     if (!preview || !img) return;
+    img.onerror = null;
     const blobUrl = URL.createObjectURL(file);
     img.onload = () => URL.revokeObjectURL(blobUrl);
     img.src = blobUrl;
     syncProductPhotoZoneLayout();
+  }
+
+  async function fileFromRemoteImageUrl(url) {
+    const res = await fetch(url, { mode: "cors", cache: "no-store" });
+    if (!res.ok) throw new Error("Não foi possível baixar a imagem arrastada.");
+    const blob = await res.blob();
+    const type = blob.type && blob.type.startsWith("image/") ? blob.type : "image/jpeg";
+    if (!String(blob.type || type).startsWith("image/") && !url.startsWith("data:image/")) {
+      throw new Error("O link arrastado não é uma imagem.");
+    }
+    const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+    return new File([blob], `produto.${ext}`, { type, lastModified: Date.now() });
+  }
+
+  async function resolveDroppedImage(dataTransfer) {
+    const file = dataTransfer?.files?.[0] || null;
+    const html = dataTransfer?.getData?.("text/html") || "";
+    const uri = `${dataTransfer?.getData?.("text/uri-list") || ""}\n${dataTransfer?.getData?.("text/plain") || ""}`;
+    const remoteUrl = extractImageUrlFromHtml(html) || extractHttpUrl(uri);
+    const hasFile = Boolean(file && file.size > 0 && isAllowedImageFile(file));
+    let placeholder = false;
+
+    let chosen = null;
+    if (hasFile) {
+      const buf = await file.arrayBuffer();
+      placeholder = await isImgbbPlaceholderBuffer(buf);
+      if (!placeholder) chosen = file;
+    }
+
+    if (chosen && shouldTranscodeToJpeg(chosen) && typeof createImageBitmap === "function") {
+      try {
+        const bitmap = await createImageBitmap(chosen);
+        bitmap.close?.();
+      } catch (_) {
+        chosen = null;
+        if (remoteUrl) {
+          try {
+            return await fileFromRemoteImageUrl(remoteUrl);
+          } catch (_) { /* tenta a mensagem abaixo */ }
+        }
+        throw new Error("Não consegui ler a foto arrastada do Google. Salve a imagem no computador e clique na área para escolher o arquivo.");
+      }
+    }
+
+    if (!chosen && remoteUrl) return fileFromRemoteImageUrl(remoteUrl);
+    if (!chosen && placeholder) {
+      throw new Error("Essa imagem é o aviso \"service unavailable\" do ImgBB, não a foto da bebida. Arraste a foto de novo ou escolha o arquivo no computador.");
+    }
+    return chosen;
   }
 
   function showImagePreview(file) {
@@ -642,35 +833,62 @@ Sugira 5 combinações de produtos (cross-sell) em português.`;
     zoneEl.addEventListener("drop", (e) => {
       e.preventDefault();
       zoneEl.classList.remove(context === "product" ? "product-photo-zone--over" : "ai-dropzone--over");
-      const file = e.dataTransfer?.files?.[0];
-      if (file) processImageFile(file, { context });
+      const transfer = e.dataTransfer;
+      resolveDroppedImage(transfer)
+        .then((file) => {
+          if (file) return processImageFile(file, { context });
+          const msg = "Não consegui ler a foto arrastada. Salve a imagem no computador e clique na área para escolher o arquivo.";
+          if (context === "product") setProductPhotoStatus(msg, "error");
+          else setAiStatus(msg, "error");
+          return null;
+        })
+        .catch((err) => {
+          const msg = err.message || "Não consegui ler a foto arrastada.";
+          if (context === "product") setProductPhotoStatus(msg, "error");
+          else setAiStatus(msg, "error");
+        });
     });
   }
 
   function setupGlobalPaste() {
     document.addEventListener("paste", (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
+      const clipboard = e.clipboardData;
+      if (!clipboard) return;
 
       let file = null;
-      for (const item of items) {
-        if (item.type.startsWith("image/")) {
+      for (const item of clipboard.items || []) {
+        if (item.type?.startsWith("image/")) {
           file = item.getAsFile();
           break;
         }
       }
-      if (!file) return;
+      const html = clipboard.getData("text/html") || "";
+      const remoteUrl = extractImageUrlFromHtml(html);
+      if (!file && !remoteUrl) return;
 
-      if (isProductPhotoContextActive()) {
-        e.preventDefault();
-        processImageFile(file, { context: "product" });
-        return;
-      }
+      const target = e.target;
+      const inField = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (inField && !file) return;
+      if (!isProductPhotoContextActive() && !isAiTabActive()) return;
 
-      if (isAiTabActive()) {
-        e.preventDefault();
-        processImageFile(file, { context: "ai" });
-      }
+      e.preventDefault();
+      const context = isProductPhotoContextActive() ? "product" : "ai";
+      resolveDroppedImage({
+        files: file ? [file] : [],
+        getData: (kind) => (kind === "text/html" ? html : "")
+      })
+        .then((resolved) => {
+          if (resolved) return processImageFile(resolved, { context });
+          const msg = "Não consegui ler a imagem colada.";
+          if (context === "product") setProductPhotoStatus(msg, "error");
+          else setAiStatus(msg, "error");
+          return null;
+        })
+        .catch((err) => {
+          const msg = err.message || "Não consegui ler a imagem colada.";
+          if (context === "product") setProductPhotoStatus(msg, "error");
+          else setAiStatus(msg, "error");
+        });
     });
   }
 
@@ -707,8 +925,19 @@ Sugira 5 combinações de produtos (cross-sell) em português.`;
     });
   }
 
-  window.uploadProductImageFile = (file, options) => processImageFile(file, options);
-  window.hasImageUploadConfigured = hasImageUploadConfigured;
+  const root = typeof window !== "undefined" ? window : globalThis;
+  root.uploadProductImageFile = (file, options) => processImageFile(file, options);
+  root.hasImageUploadConfigured = hasImageUploadConfigured;
+  root.PDVImageUpload = {
+    extractImageUrlFromHtml,
+    extractHttpUrl,
+    shouldTranscodeToJpeg,
+    imageBaseName,
+    imgbbCandidateUrls,
+    isImgbbPlaceholderBuffer,
+    prepareImageFile,
+    resolveDroppedImage
+  };
 
   function setupAiKeysForm() {
     document.getElementById("aiSaveKeysBtn")?.addEventListener("click", async () => {
@@ -746,7 +975,7 @@ Sugira 5 combinações de produtos (cross-sell) em português.`;
     pdv().syncAiKeyInputs?.(pdv().getCompany?.() || {});
   }
 
-  window.setupAI = function setupAI() {
+  root.setupAI = function setupAI() {
     setupImageUpload();
     setupProductPhotoUpload();
     setupAiActions();
@@ -755,12 +984,13 @@ Sugira 5 combinações de produtos (cross-sell) em português.`;
     loadAiKeysIntoForm();
   };
 
-  window.onAITabActivated = function onAITabActivated() {
+  root.onAITabActivated = function onAITabActivated() {
     populateProductSelect();
     loadAiKeysIntoForm();
   };
 
-  window.refreshAIProductSelect = populateProductSelect;
-  window.refreshProductPhotoPreview = showProductPhotoPreview;
-  window.resetProductPhotoForm = resetProductPhotoForm;
+  root.refreshAIProductSelect = populateProductSelect;
+  root.refreshProductPhotoPreview = showProductPhotoPreview;
+  root.resetProductPhotoForm = resetProductPhotoForm;
+  if (typeof module !== "undefined" && module.exports) module.exports = root.PDVImageUpload;
 })();
