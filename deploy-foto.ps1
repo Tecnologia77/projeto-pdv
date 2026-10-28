@@ -58,13 +58,36 @@ if ($aiText -notmatch "IMGBB_PLACEHOLDER_SHA256") {
   throw "O ai.js baixado não é a versão corrigida."
 }
 
+$restore = Join-Path $dest "photo-restore.js"
+& curl.exe -fsSL "https://raw.githubusercontent.com/Tecnologia77/projeto-pdv/cursor/fix-product-photo-imgbb-aaa8/photo-restore.js" -o $restore
+if ($LASTEXITCODE -ne 0) { throw "Não consegui baixar o photo-restore.js novo do GitHub." }
+$restoreText = [System.IO.File]::ReadAllText($restore)
+if ($restoreText -notmatch "data-pdv-state") {
+  throw "O photo-restore.js baixado não é a versão corrigida."
+}
+
 $indexPath = Join-Path $dest "index.html"
 $html = [System.IO.File]::ReadAllText($indexPath)
 $html2 = [regex]::Replace($html, "ai\.js\?v=\d+", "ai.js?v=202610271900")
 if ($html2 -notmatch "ai\.js\?v=202610271900") {
   throw "Não achei a tag do ai.js no index.html do site."
 }
+$html2 = [regex]::Replace($html2, "photo-restore\.js\?v=\d+", "photo-restore.js?v=2026102815")
+if ($html2 -notmatch "photo-restore\.js\?v=2026102815") {
+  $html2 = $html2.Replace("<script src=`"ai.js?v=202610271900`"></script>", "<script src=`"photo-restore.js?v=2026102815`"></script>`r`n    <script src=`"ai.js?v=202610271900`"></script>")
+}
+if ($html2 -notmatch "photo-restore\.js\?v=2026102815") {
+  throw "Não consegui incluir o photo-restore.js no index.html."
+}
+
 $utf8 = New-Object System.Text.UTF8Encoding $false
+$deliveryPath = Join-Path $dest "delivery.html"
+$delivery = [System.IO.File]::ReadAllText($deliveryPath)
+$delivery2 = [regex]::Replace($delivery, "photo-restore\.js\?v=\d+", "photo-restore.js?v=2026102815")
+if ($delivery2 -notmatch "photo-restore\.js\?v=2026102815") {
+  throw "Não achei a tag do photo-restore.js no delivery.html do site."
+}
+[System.IO.File]::WriteAllText($deliveryPath, $delivery2, $utf8)
 [System.IO.File]::WriteAllText($indexPath, $html2, $utf8)
 
 $firebaseJson = '{"hosting":{"site":"adega-brothers","public":".","ignore":["firebase.json","**/.*","**/node_modules/**"]}}'
