@@ -296,7 +296,47 @@ if (-not (Test-Path $fj)) {
     if (Test-Path $fj2) { $deploy = $parent; $fj = $fj2 }
   }
 }
-if (-not (Test-Path $fj)) { throw "Nao achei firebase.json. Abra a pasta de onde voce costuma publicar o linkagendamentoonline." }
+if (-not (Test-Path $fj)) {
+  $booking = Join-Path (Join-Path $site "b") "admin.html"
+  if (-not (Test-Path $booking)) {
+    throw "Nao achei b\admin.html. Essa e a pagina de agendamento; sem ela o link /b/nome quebra."
+  }
+  $fj = Join-Path $site "firebase.json"
+  $deploy = $site
+  $json = @'
+{
+  "hosting": {
+    "site": "linkagendamentoonline",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "corrigir-link-admin.ps1"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(html|js|css|webmanifest)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/b/**",
+        "destination": "/b/admin.html"
+      }
+    ]
+  }
+}
+'@
+  [IO.File]::WriteAllText($fj, $json.Trim() + "`n", $utf8)
+  Write-Host "Criei firebase.json para publicar esta pasta."
+}
 $fjText = [IO.File]::ReadAllText($fj)
 if ($fjText -match 'adega-brothers') { throw "Esse firebase.json e do PDV, nao do agendamento. Entre na pasta do linkagendamentoonline." }
 
