@@ -69,17 +69,17 @@ Write-B64 "manifest-cliente.webmanifest" @(
 Write-B64 "manifest-admin.webmanifest" @(
 'ewogICJpZCI6ICJhcHAtYmFyYmVyLWFkbWluIiwKICAibmFtZSI6ICJBcHAgQmFyYmVyIEFkbWluIiwKICAic2hvcnRfbmFtZSI6'
 'ICJCYXJiZXIgQWRtaW4iLAogICJkZXNjcmlwdGlvbiI6ICJQYWluZWwsIGFnZW5kYSBlIGNvbmZpZ3VyYcOnw7VlcyBkYSBzdWEg'
-'YmFyYmVhcmlhIiwKICAic3RhcnRfdXJsIjogIi9pbmRleC5odG1sIiwKICAic2NvcGUiOiAiLyIsCiAgImRpc3BsYXkiOiAic3Rh'
-'bmRhbG9uZSIsCiAgImxhdW5jaF9oYW5kbGVyIjogewogICAgImNsaWVudF9tb2RlIjogIm5hdmlnYXRlLWV4aXN0aW5nIgogIH0s'
-'CiAgIm9yaWVudGF0aW9uIjogInBvcnRyYWl0LXByaW1hcnkiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiMxYTFkMjQiLAogICJ0'
-'aGVtZV9jb2xvciI6ICIjMWExZDI0IiwKICAibGFuZyI6ICJwdC1CUiIsCiAgImljb25zIjogWwogICAgewogICAgICAic3JjIjog'
-'Ii9pY29ucy9pY29uLTE5Mi5wbmciLAogICAgICAic2l6ZXMiOiAiMTkyeDE5MiIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIs'
-'CiAgICAgICJwdXJwb3NlIjogImFueSIKICAgIH0sCiAgICB7CiAgICAgICJzcmMiOiAiL2ljb25zL2FwcGxlLXRvdWNoLWljb24u'
-'cG5nIiwKICAgICAgInNpemVzIjogIjE4MHgxODAiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciLAogICAgICAicHVycG9zZSI6'
-'ICJhbnkiCiAgICB9LAogICAgewogICAgICAic3JjIjogIi9pY29ucy9pY29uLTUxMi5wbmciLAogICAgICAic2l6ZXMiOiAiNTEy'
-'eDUxMiIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsCiAgICAgICJwdXJwb3NlIjogImFueSIKICAgIH0sCiAgICB7CiAgICAg'
-'ICJzcmMiOiAiL2ljb25zL2ljb24tbWFza2FibGUtNTEyLnBuZyIsCiAgICAgICJzaXplcyI6ICI1MTJ4NTEyIiwKICAgICAgInR5'
-'cGUiOiAiaW1hZ2UvcG5nIiwKICAgICAgInB1cnBvc2UiOiAibWFza2FibGUiCiAgICB9CiAgXQp9Cg=='
+'YmFyYmVhcmlhIiwKICAic3RhcnRfdXJsIjogIi8iLAogICJzY29wZSI6ICIvIiwKICAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwK'
+'ICAibGF1bmNoX2hhbmRsZXIiOiB7CiAgICAiY2xpZW50X21vZGUiOiAibmF2aWdhdGUtZXhpc3RpbmciCiAgfSwKICAib3JpZW50'
+'YXRpb24iOiAicG9ydHJhaXQtcHJpbWFyeSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzFhMWQyNCIsCiAgInRoZW1lX2NvbG9y'
+'IjogIiMxYTFkMjQiLAogICJsYW5nIjogInB0LUJSIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiL2ljb25zL2lj'
+'b24tMTkyLnBuZyIsCiAgICAgICJzaXplcyI6ICIxOTJ4MTkyIiwKICAgICAgInR5cGUiOiAiaW1hZ2UvcG5nIiwKICAgICAgInB1'
+'cnBvc2UiOiAiYW55IgogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICIvaWNvbnMvYXBwbGUtdG91Y2gtaWNvbi5wbmciLAogICAg'
+'ICAic2l6ZXMiOiAiMTgweDE4MCIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsCiAgICAgICJwdXJwb3NlIjogImFueSIKICAg'
+'IH0sCiAgICB7CiAgICAgICJzcmMiOiAiL2ljb25zL2ljb24tNTEyLnBuZyIsCiAgICAgICJzaXplcyI6ICI1MTJ4NTEyIiwKICAg'
+'ICAgInR5cGUiOiAiaW1hZ2UvcG5nIiwKICAgICAgInB1cnBvc2UiOiAiYW55IgogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICIv'
+'aWNvbnMvaWNvbi1tYXNrYWJsZS01MTIucG5nIiwKICAgICAgInNpemVzIjogIjUxMng1MTIiLAogICAgICAidHlwZSI6ICJpbWFn'
+'ZS9wbmciLAogICAgICAicHVycG9zZSI6ICJtYXNrYWJsZSIKICAgIH0KICBdCn0K'
 )
 
 Write-B64 "js/install-pwa.js" @(
@@ -276,6 +276,24 @@ if (Test-Path $rootCopy) {
 
 $check = [IO.File]::ReadAllText((Join-Path $site "manifest-cliente.webmanifest"))
 if ($check -notmatch '"scope": "/b/"') { throw "O manifest do cliente nao ficou limitado ao link /b/." }
+$adminManifest = [IO.File]::ReadAllText((Join-Path $site "manifest-admin.webmanifest"))
+if ($adminManifest -notmatch '"start_url": "/",') { throw "O link do admin nao ficou em linkagendamentoonline.web.app." }
+
+function Add-AdminButton([string]$html) {
+  $url = "https://linkagendamentoonline.web.app/"
+  if ($html -notmatch 'id="btnOpenAdmin"' -and $html -match 'app-switch-link">Sou barbeiro') {
+    $html = [regex]::Replace($html, 'href="[^"]*"(\s+class="salon-btn-ghost app-switch-link">Sou barbeiro)', "id=`"btnOpenAdmin`" href=`"$url`"`$1", 1)
+  }
+  if ($html -notmatch 'id="btnOpenAdmin"' -and $html -match 'salon-content public-page') {
+    $button = '<a id="btnOpenAdmin" href="' + $url + '" style="position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:center;margin:0 0 0.75rem;padding:0.85rem 1rem;border-radius:999px;background:#1a1d24;color:#fff;text-decoration:none;font-weight:700;text-align:center;">Sou barbeiro - abrir painel admin</a>'
+    $html = [regex]::Replace($html, '(<div class="salon-content public-page">)', ('$1' + $button), 1)
+  }
+  if ($html -match 'id="btnOpenAdmin"' -and $html -notmatch 'id="btnOpenAdmin-boot"') {
+    $script = '<script id="btnOpenAdmin-boot">(function(){var link=document.getElementById("btnOpenAdmin");if(!link)return;link.addEventListener("click",function(ev){ev.preventDefault();window.location.href="https://linkagendamentoonline.web.app/";});})();</script>'
+    $html = $html.Replace("</body>", $script + "</body>")
+  }
+  return $html
+}
 
 Get-ChildItem -Path $site -Filter *.html -Recurse -File -ErrorAction SilentlyContinue |
   Where-Object { $_.FullName -notmatch '\\node_modules\\' } |
@@ -284,6 +302,7 @@ Get-ChildItem -Path $site -Filter *.html -Recurse -File -ErrorAction SilentlyCon
     $n = [regex]::Replace($c, 'manifest-cliente\.webmanifest(\?v=\d+)?', 'manifest-cliente.webmanifest?v=5')
     $n = [regex]::Replace($n, 'manifest-admin\.webmanifest(\?v=\d+)?', 'manifest-admin.webmanifest?v=5')
     $n = [regex]::Replace($n, 'install-pwa\.js(\?v=\d+)?', 'install-pwa.js?v=5')
+    $n = Add-AdminButton $n
     if ($n -ne $c) { [IO.File]::WriteAllText($_.FullName, $n, $utf8) }
   }
 
@@ -359,4 +378,4 @@ Pop-Location
 if ($code -ne 0) { throw "O deploy falhou (codigo $code). Os arquivos ja foram corrigidos na pasta." }
 Write-Host ""
 Write-Host "Deploy concluido."
-Write-Host "Link do admin: https://linkagendamentoonline.web.app/index.html"
+Write-Host "Link do admin: https://linkagendamentoonline.web.app/"
